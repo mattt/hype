@@ -1,0 +1,55 @@
+[project]
+name = "hype"
+version = "0.0.1"
+description = ""
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.0", "docstring-parser>=0.16"]
+
+[project.optional-dependencies]
+testing = ["pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pylint.main]
+disable = [
+    "C0114", # Missing module docstring
+    "C0115", # Missing class docstring
+    "C0116", # Missing function or method docstring
+    "C0301", # Line too long
+    "C0413", # Import should be placed at the top of the module
+    "R0903", # Too few public methods
+    "W0622", # Redefining built-in
+]
+good-names = ["id", "input"]
+
+[tool.ruff]
+src = ["src", "tests"]
+lint.select = [
+    "E",   # pycodestyle error
+    "F",   # Pyflakes
+    "I",   # isort
+    "W",   # pycodestyle warning
+    "UP",  # pyupgrade
+    "S",   # flake8-bandit
+    "B",   # flake8-bugbear
+    "ANN", # flake8-annotations
+]
+lint.ignore = [
+    "E501",   # Line too long
+    "S101",   # Use of `assert` detected"
+    "S113",   # Probable use of requests call without timeout
+    "B008",   # Do not perform function call in argument defaults
+    "ANN001", # Missing type annotation for function argument
+    "ANN002", # Missing type annotation for `*args`
+    "ANN003", # Missing type annotation for `**kwargs`
+    "ANN101", # Missing type annotation for self in method
+    "ANN102", # Missing type annotation for cls in classmethod
+    "ANN401", # Dynamically typed expressions are disallowed
+    "UP037",  # Remove quotes from type annotation
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN"]
