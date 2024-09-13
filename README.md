@@ -292,6 +292,7 @@ print(result.model_dump_json(indent=2))
 
 - [x] Basic tools use (calculator)
 - [x] Output shaping (extracting flight information)
+- [x] RAG with vector store
 - [ ] Web scraping
 - [ ] Generating an image with DALL-E / Replicate / FAL
 - [ ] Interacting with the local filesystem (using Ollama)
@@ -321,5 +322,7 @@ print(result.model_dump_json(indent=2))
 
 ### Implementation details
 
+- [ ] Add support for hyping up classes and/or instance methods
+      (for example, support `search` as an instance method in the RAG example)
 - [ ] Custom `concurrent.futures.Executor` subclass for chat models
-      (Use `Future` correctly, record calls, enforce limits, reduce boilerplate)
+      (use `Future` correctly, record calls, enforce limits, reduce boilerplate)
