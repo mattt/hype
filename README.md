@@ -294,12 +294,12 @@ See [examples/output_shaping.py] for the full, working example.
 
 ### Examples
 
-- [x] Basic tools use (calculator)
-- [x] Output shaping (extracting flight information)
-- [x] RAG with vector store
-- [ ] Web scraping
+- [x] [Basic tools use (calculator)](/examples/tool_use.py)
+- [x] [Output shaping (extracting flight information)](/examples/tool_use.py)
+- [x] [RAG with vector store (Oregon Trail log)](/examples/rag.py)
+- [x] [Web scraping](/examples//web_scraping.py)
+- [x] [Interacting with the macOS using Ollama](/examples/system_events.py)
 - [ ] Generating an image with DALL-E / Replicate / FAL
-- [ ] Interacting with the local filesystem (using Ollama)
 
 ### Integrations
 
