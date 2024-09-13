@@ -8,6 +8,8 @@ so you'll need to run the example using Docker
 (we recommend using [OrbStack](https://orbstack.dev/)).
 
 ```
+export OPENAI_API_KEY="..."
+
 docker run --rm \
            --platform linux/amd64 \
            -v $(pwd):/app -w /app \

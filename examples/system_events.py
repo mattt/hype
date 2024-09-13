@@ -1,7 +1,14 @@
 """
 This example shows how to use Ollama and macOS System Events together.
 
-`uv run examples/system_events.py`
+Install `ollama` here: https://ollama.com
+Download `uv` to run this example: https://github.com/astral-sh/uv
+
+```
+ollama pull llama3.1
+
+uv run examples/system_events.py
+```
 """
 
 # /// script

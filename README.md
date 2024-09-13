@@ -171,6 +171,8 @@ Here's a transcript of the exchange:
 >
 > Hype is designed with composability in mind, and doesn't get in your way.
 
+See [examples/tool_use.py] for the full, working example.
+
 ## Return typed outputs from AI assistants
 
 Hype makes it easy to <dfn>shape</dfn> outputs from a chat assistant.
@@ -285,6 +287,8 @@ print(result.model_dump_json(indent=2))
   "arrival_time": "2023-09-20T18:30:00Z"
 }
 ```
+
+See [examples/output_shaping.py] for the full, working example.
 
 ## Roadmap
 

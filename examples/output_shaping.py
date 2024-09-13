@@ -1,7 +1,13 @@
 """
 This example shows how to use output shaping with Anthropic models.
 
-`uv run examples/output_shaping.py`
+Download `uv` to run this example: https://github.com/astral-sh/uv
+
+```
+export ANTHROPIC_API_KEY="..."
+
+uv run examples/output_shaping.py
+```
 """
 
 # /// script

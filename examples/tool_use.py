@@ -1,7 +1,13 @@
 """
 This example shows how to use tools with Anthropic models.
 
-`uv run examples/tool_use.py`
+Download `uv` to run this example: https://github.com/astral-sh/uv
+
+```
+export ANTHROPIC_API_KEY="..."
+
+uv run examples/tool_use.py
+```
 """
 
 # /// script
