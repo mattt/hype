@@ -1,35 +1,128 @@
 """
-This example shows how to do Retrieval Augmented Generation (RAG) with OpenAI.
+This example shows how to do Retrieval Augmented Generation (RAG) with OpenAI,
+using the `sqlite-vec` extension to store and query the embeddings
+from a SQLite database.
 
-`uv run examples/rag.py`
+Unfortunately, macOS disables SQLite extensions by default,
+so you'll need to run the example using Docker
+(we recommend using [OrbStack](https://orbstack.dev/)).
+
+```
+docker run --rm \
+           --platform linux/amd64 \
+           -v $(pwd):/app -w /app \
+           -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+           ghcr.io/astral-sh/uv:bookworm uv run examples/rag.py
+```
 """
+
 
 # /// script
 # dependencies = [
 #   "openai",
 #   "numpy",
 #   "pydantic",
+#   "sqlite-vec",
 #   "hype @ git+https://github.com/mattt/hype.git",
 # ]
 # ///
 
+import contextlib
 import datetime
 import sqlite3
-import tempfile
-from typing import Any, cast
+import struct
+from collections.abc import Generator
 
-import numpy as np
+import sqlite_vec
 from openai import OpenAI
 from pydantic import BaseModel
 
 import hype
 
-client = OpenAI()
+
+class Journal:
+    class Entry(BaseModel):
+        date: datetime.date
+        content: str
+
+    _db: sqlite3.Connection
+    _client: OpenAI
+
+    def __init__(self, client: OpenAI) -> None:
+        self._client = client
+
+    def __enter__(self) -> "Journal":
+        self._db = sqlite3.connect(":memory:")
+
+        # Load the sqlite-vec extension
+        self._db.enable_load_extension(True)
+        sqlite_vec.load(self._db)
+        self._db.enable_load_extension(False)
+
+        # Register the date adapter and converter
+        sqlite3.register_adapter(datetime.date, lambda d: d.isoformat())
+        sqlite3.register_converter(
+            "DATE", lambda s: datetime.datetime.strptime(s.decode(), "%Y-%m-%d").date()
+        )
+
+        # Create the entries table
+        cursor = self._db.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL,
+                content TEXT NOT NULL
+            )
+        """)
+
+        # Create the vector table
+        cursor.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS vec_entries USING vec0(
+                id INTEGER PRIMARY KEY,
+                embedding FLOAT[1536]
+            )
+        """)
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self._db.close()
+
+    @contextlib.contextmanager
+    def cursor(self) -> Generator[sqlite3.Cursor, None, None]:
+        cursor = self._db.cursor()
+        try:
+            yield cursor
+        finally:
+            cursor.close()
+
+    def add(self, entries: Entry | list[Entry]) -> None:
+        entries = entries if isinstance(entries, list) else [entries]
+
+        response = self._client.embeddings.create(
+            input=[entry.content for entry in entries], model="text-embedding-3-small"
+        )
+        embeddings = [embedding.embedding for embedding in response.data]
+
+        with self.cursor() as cursor:
+            for entry, embedding in zip(entries, embeddings, strict=False):
+                cursor.execute(
+                    "INSERT INTO entries (date, content) VALUES (?, ?)",
+                    (entry.date, entry.content),
+                )
+                entry_id = cursor.lastrowid
+
+                cursor.execute(
+                    "INSERT INTO vec_entries (id, embedding) VALUES (?, ?)",
+                    (entry_id, _serialize(embedding)),
+                )
+
+        self._db.commit()  # Don't forget to commit the changes
 
 
-class JournalEntry(BaseModel):
-    date: datetime.date
-    content: str
+def _serialize(vector: list[float]) -> bytes:
+    """Serializes a list of floats into a compact "raw bytes" format"""
+    return struct.pack(f"{len(vector)}f", *vector)
 
 
 ENTRIES = {
@@ -46,116 +139,87 @@ ENTRIES = {
 }
 
 
-def generate_embeddings(texts: list[str]) -> list[np.ndarray]:
-    response = client.embeddings.create(model="text-embedding-ada-002", input=texts)
-    return [np.array(data.embedding, dtype=np.float32) for data in response.data]
-
-
 if __name__ == "__main__":
-    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".db") as temp_db:
-        with sqlite3.connect(temp_db.name) as conn:
-            sqlite3.register_adapter(datetime.date, lambda d: d.isoformat())
-            sqlite3.register_converter(
-                "DATE",
-                lambda s: datetime.datetime.strptime(s.decode(), "%Y-%m-%d").date(),
-            )
+    client = OpenAI()
 
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date DATE NOT NULL,
-                    content TEXT NOT NULL,
-                    embedding BLOB NOT NULL
-                )
-            """)
-
+    with Journal(client) as db:
+        print("Populating the database...")
         entries = [
-            JournalEntry(date=cast(Any, date), content=content)
+            Journal.Entry(
+                date=datetime.datetime.strptime(date, "%Y-%m-%d").date(),
+                content=content,
+            )
             for date, content in ENTRIES.items()
         ]
-        print("Generating embeddings...")
-        embeddings = generate_embeddings([entry.content for entry in entries])
-
-        for entry, embedding in zip(entries, embeddings, strict=True):
-            cursor.execute(
-                """
-                INSERT INTO entries (date, content, embedding)
-                VALUES (?, ?, ?)
-                """,
-                (entry.date, entry.content, np.array(embedding).tobytes()),
-            )
+        db.add(entries)
 
         @hype.up
-        def search(query: str, top_k: int) -> list[JournalEntry]:
+        def search(query: str, top_k: int) -> list[Journal.Entry]:
             """
             Search for journal entries that match the query.
             """
 
-            print(f'Searching for entries matching "{query}"...')
+            response = client.embeddings.create(
+                input=[query], model="text-embedding-3-small"
+            )
+            query_embedding = response.data[0].embedding
 
-            results = []
-
-            query_embedding = generate_embeddings([query])[0]
-
-            cursor = conn.cursor()
-            cursor.execute("SELECT date, content, embedding FROM entries")
-            for row in cursor.fetchall():
-                date, content, embedding_bytes = row
-                document_embedding = np.frombuffer(embedding_bytes, dtype=np.float32)
-                similarity = np.dot(
-                    query_embedding,
-                    document_embedding,
-                ) / (
-                    np.linalg.norm(query_embedding) * np.linalg.norm(document_embedding)
-                )
-                results.append((JournalEntry(date=date, content=content), similarity))
+            with db.cursor() as cursor:
+                results = cursor.execute(
+                    """
+                    SELECT
+                        entries.date,
+                        entries.content,
+                        distance
+                    FROM vec_entries
+                    LEFT JOIN entries ON entries.id = vec_entries.id
+                    WHERE embedding MATCH ?
+                        AND k = ?
+                    ORDER BY distance
+                    """,
+                    [_serialize(query_embedding), top_k],
+                ).fetchall()
 
             return [
-                entry
-                for entry, _ in sorted(results, key=lambda x: x[1], reverse=True)[
-                    :top_k
-                ]
+                Journal.Entry(date=date, content=content)
+                for date, content, _ in results
             ]
 
-    tools = hype.create_openai_tools([search])
+        tools = hype.create_openai_tools([search])
 
-    print("Chatting with the assistant...")
-    assistant = client.beta.assistants.create(
-        instructions="You are a helpful assistant. Use the provided tools to answer questions.",
-        model="gpt-4o",
-        tools=tools,
-    )
+        print("Chatting with the assistant...")
+        assistant = client.beta.assistants.create(
+            instructions="You are a helpful assistant. Use the provided tools to answer questions.",
+            model="gpt-4o",
+            tools=tools,
+        )
 
-    thread = client.beta.threads.create()
-    message = client.beta.threads.messages.create(
-        thread_id=thread.id,
-        role="user",
-        content="Based on the entries, when did we cross the Green River?",
-    )
+        thread = client.beta.threads.create()
+        message = client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content="Based on the entries, when did we cross the Green River?",
+        )
 
-    run = client.beta.threads.runs.create_and_poll(
-        thread_id=thread.id,
-        assistant_id=assistant.id,
-    )
+        run = client.beta.threads.runs.create_and_poll(
+            thread_id=thread.id,
+            assistant_id=assistant.id,
+        )
 
-    # Define the list to store tool outputs
-    if run.required_action and run.required_action.submit_tool_outputs:
-        tool_outputs = tools(run.required_action.submit_tool_outputs.tool_calls)
+        # Define the list to store tool outputs
+        if run.required_action and run.required_action.submit_tool_outputs:
+            tool_outputs = tools(run.required_action.submit_tool_outputs.tool_calls)
 
-        # Submit all tool outputs at once after collecting them in a list
-        if tool_outputs:
-            try:
+            # Submit all tool outputs at once after collecting them in a list
+            if tool_outputs:
                 run = client.beta.threads.runs.submit_tool_outputs_and_poll(
                     thread_id=thread.id, run_id=run.id, tool_outputs=tool_outputs
                 )
-            except Exception as e:
-                print("Failed to submit tool outputs:", e)
-        else:
-            print("No tool outputs to submit.")
+            else:
+                print("No tool outputs to submit.")
 
-    if run.status == "completed":
-        messages = client.beta.threads.messages.list(thread_id=thread.id)
-        print(messages)
-    else:
-        print(run.status)
+        if run.status == "completed":
+            messages = client.beta.threads.messages.list(thread_id=thread.id)
+            print(messages)
+        else:
+            print(run.status)
