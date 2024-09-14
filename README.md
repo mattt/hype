@@ -235,7 +235,7 @@ from anthropic import Anthropic
 import hype
 
 client = Anthropic()
-tools = create_anthropic_tools(result_type=FlightDetails)
+tools = hype.create_anthropic_tools(result_type=FlightDetails)
 
 messages: list[MessageParam] = [
     {
