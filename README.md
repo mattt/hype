@@ -37,7 +37,9 @@ divide.json_schema  # "{'$defs': {'Input': { ... } }"
 $ pip install git+https://github.com/mattt/hype.git
 ```
 
-## Call Python functions from AI assistants
+## Examples
+
+### Call Python functions from AI assistants
 
 Hyped up functions have tool definitions that you can pass to LLMs like 
 [Claude](https://docs.anthropic.com/en/docs/build-with-claude/tool-use) and
@@ -47,11 +49,6 @@ For example,
 let's define a pair of functions to help answer a maths problem.
 
 ```python
-import ast
-import operator
-import re
-from typing import Callable
-
 import hype
 
 @hype.up
@@ -171,9 +168,10 @@ Here's a transcript of the exchange:
 >
 > Hype is designed with composability in mind, and doesn't get in your way.
 
-See [examples/tool_use.py] for the full, working example.
+See [examples/tool_use.py](/examples/tool_use.py) 
+for the full, working example.
 
-## Return typed outputs from AI assistants
+### Return typed outputs from AI assistants
 
 Hype makes it easy to <dfn>shape</dfn> outputs from a chat assistant.
 
@@ -288,17 +286,36 @@ print(result.model_dump_json(indent=2))
 }
 ```
 
-See [examples/output_shaping.py] for the full, working example.
+See [examples/output_shaping.py](/examples/output_shaping.py) 
+for the full, working example.
+
+### Search the web and scrape webpages
+
+Find recipes with DuckDuckGo, 
+scrape content from search results,
+convert units to metric,
+and return structured output.
+
+See [examples/web.py](/examples/web.py).
+
+### Perform retrival augmented generation (RAG) with vector store
+
+Build up a database of documents in SQLite
+using an extension for vector search,
+and use that to answer questions.
+
+See [examples/rag.py](/examples/rag.py).
+
+### Interact with macOS using AppleScript and Ollama
+
+A glimmer of how to build your own self-hosted, local-first personal assistant.
+
+See [examples/system_events.py](/examples/system_events.py).
 
 ## Roadmap
 
 ### Examples
 
-- [x] [Basic tools use (calculator)](/examples/tool_use.py)
-- [x] [Output shaping (extracting flight information)](/examples/tool_use.py)
-- [x] [RAG with vector store (Oregon Trail log)](/examples/rag.py)
-- [x] [Web scraping](/examples//web_scraping.py)
-- [x] [Interacting with the macOS using Ollama](/examples/system_events.py)
 - [ ] Generating an image with DALL-E / Replicate / FAL
 
 ### Integrations
