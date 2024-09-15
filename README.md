@@ -306,6 +306,13 @@ and use that to answer questions.
 
 See [examples/rag.py](/examples/rag.py).
 
+### Extract structured information from images
+
+Use GPT-4o to extract board state from a picture of a Sudoku puzzle 
+and use tools to solve it.
+
+See [examples/sudoku.py](/examples/sudoku.py).
+
 ### Interact with macOS using AppleScript and Ollama
 
 A glimmer of how to build your own self-hosted, local-first personal assistant.

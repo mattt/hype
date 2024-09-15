@@ -1,6 +1,6 @@
 import json
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from hype.tools import Function, Result, Tools
 
@@ -17,16 +17,20 @@ class OpenAITools(Tools[Result], Iterable["ChatCompletionToolParam"]):
     Tools that can be used with OpenAI assistants.
     """
 
+    strict: bool = True
+
     def __iter__(self) -> Iterator["ChatCompletionToolParam"]:
         for function in self._tools.values():
             parameters = function.input.model_json_schema(mode="validation")
             parameters["additionalProperties"] = False
 
+            parameters = _process_parameters(parameters)
+
             yield {
                 "type": "function",
                 "function": {
                     "name": function.name,
-                    "strict": True,
+                    "strict": self.strict,
                     "parameters": parameters,
                 },
             }
@@ -71,3 +75,21 @@ def create_openai_tools[Result](  # pylint: disable=redefined-outer-name
         functions=functions,
         result_type=result_type,
     )
+
+
+T = TypeVar("T")
+
+
+def _process_parameters(
+    input: T,
+) -> T:
+    if isinstance(input, dict):
+        return {
+            k: _process_parameters(v)
+            for k, v in input.items()
+            if k not in ["title", "x-order"]
+        }  # type: ignore
+    elif isinstance(input, list):
+        return [_process_parameters(i) for i in input]  # type: ignore
+    else:
+        return input
