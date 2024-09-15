@@ -296,7 +296,7 @@ scrape content from search results,
 convert units to metric,
 and return structured output.
 
-See [examples/web.py](/examples/web.py).
+See [examples/web_scaping.py](/examples/web_scraping.py).
 
 ### Perform retrival augmented generation (RAG) with vector store
 
