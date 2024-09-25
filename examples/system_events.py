@@ -5,7 +5,7 @@ Install `ollama` here: https://ollama.com
 Download `uv` to run this example: https://github.com/astral-sh/uv
 
 ```
-ollama pull llama3.1
+ollama pull llama3.2
 
 uv run examples/system_events.py
 ```
@@ -43,8 +43,8 @@ def _run_apple_script(
     return subprocess.run(cmd, capture_output=capture_output, text=True, check=True)  # noqa: S603
 
 
-# FIXME: Either llama3.1 or ollama doesn't seem to support multiple tool calls.
-#        Or else, llama3.1 can't figure out that it should use `get_current_time`
+# FIXME: Either Ollama doesn't seem to support multiple tool calls,
+#        or llama3.2 can't figure out that it should use `get_current_time`
 #        to get the current time.
 @hype.up
 def get_current_time() -> float:
@@ -91,11 +91,14 @@ if __name__ == "__main__":
     )
 
     response = ollama.chat(
-        model="llama3.1",
+        model="llama3.2",
         messages=[
             {
                 "role": "system",
-                "content": "You are a helpful assistant that can interract with macOS System Events.",
+                "content": """
+                You are a helpful assistant that can interract with macOS System Events.
+                Always use sentence case when creating reminders.
+                """,
             },
             {
                 "role": "user",
