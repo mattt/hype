@@ -34,7 +34,7 @@ divide.json_schema  # "{'$defs': {'Input': { ... } }"
 ## Installation
 
 ```console
-$ pip install git+https://github.com/mattt/hype.git
+pip install git+https://github.com/mattt/hype.git
 ```
 
 ## Examples
