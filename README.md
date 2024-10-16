@@ -313,6 +313,12 @@ and use tools to solve it.
 
 See [examples/sudoku.py](/examples/sudoku.py).
 
+### Build interactive tools
+
+Build tools that get input from the user interactively.
+
+See [examples/interactive.py](/examples/interactive.py).
+
 ### Interact with macOS using AppleScript and Ollama
 
 A glimmer of how to build your own self-hosted, local-first personal assistant.
