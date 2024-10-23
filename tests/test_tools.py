@@ -4,7 +4,6 @@ import re
 from collections.abc import Callable
 from typing import TypeVar
 
-import anthropic
 import pytest
 
 import hype
@@ -58,6 +57,8 @@ def is_prime(n: int) -> bool:
 
 @pytest.mark.skip(reason="TODO")
 def test_chat_with_claude():
+    import anthropic
+
     MODEL_NAME = "claude-3-5-sonnet-20240620"
 
     print("Starting test_chat_with_claude", flush=True)
