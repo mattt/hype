@@ -22,7 +22,7 @@ from pydantic import (
     validate_call,
 )
 from pydantic.fields import FieldInfo
-from pydantic.json_schema import models_json_schema
+from pydantic.json_schema import JsonSchemaValue, models_json_schema
 
 Input = ParamSpec("Input")
 Output = TypeVar("Output")
@@ -38,13 +38,18 @@ class Function(BaseModel, Generic[Input, Output]):
     output: type[BaseModel]
 
     @classmethod
-    def from_function(cls, func: Callable[Input, Output]) -> "Function[Input, Output]":
-        name = func.__name__
+    def validate(cls, value: Callable[Input, Output]) -> "Function[Input, Output]":
+        if isinstance(value, Function):
+            return value
+        if not callable(value):
+            raise TypeError("value must be callable")
 
-        docstring = parse_docstring(func.__doc__ or "")
+        name = value.__name__
+
+        docstring = parse_docstring(value.__doc__ or "")
         description = docstring.description
 
-        input, output = input_and_output_types(func, docstring)
+        input, output = input_and_output_types(value, docstring)
 
         function = cls(
             name=name,
@@ -52,7 +57,7 @@ class Function(BaseModel, Generic[Input, Output]):
             input=input,
             output=output,
         )
-        function._wrapped = func
+        function._wrapped = value
         return function
 
     def __call__(self, *args: Input.args, **kwargs: Input.kwargs) -> Output:  # pylint: disable=no-member
@@ -67,7 +72,7 @@ class Function(BaseModel, Generic[Input, Output]):
         return self.output.model_json_schema()
 
     @property
-    def json_schema(self, title: str | None = None):
+    def json_schema(self, title: str | None = None) -> JsonSchemaValue:
         _, top_level_schema = models_json_schema(
             [(self.input, "validation"), (self.output, "validation")],
             title=title or self.name,
@@ -141,5 +146,5 @@ def input_and_output_types(
     return input, output
 
 
-def export(func: Callable[Input, Output]) -> Function[Input, Output]:
-    return Function.from_function(func)
+def wrap(function: Callable[Input, Output]) -> Function[Input, Output]:
+    return Function.validate(function)

@@ -5,10 +5,10 @@ from typing import (
 import pydantic
 import pytest
 
-from hype.function import export
+import hype
 
 
-@export
+@hype.up
 def f(
     x: Literal[1, 2, 3],
     y: int = pydantic.Field(..., description="The second number (from field)"),

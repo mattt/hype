@@ -1,10 +1,11 @@
 import warnings
-from abc import ABC, abstractmethod
-from collections.abc import Container, Iterable, Iterator
+from abc import ABC
+from collections.abc import Iterable
 from concurrent.futures import Future
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
-from hype.function import Function, export
+import hype
+from hype.function import Function
 
 
 def create_capture_function(dtype: type) -> tuple[Function, Future]:
@@ -16,7 +17,7 @@ def create_capture_function(dtype: type) -> tuple[Function, Future]:
 
     future = Future()
 
-    @export
+    @hype.up
     def capture(value: dtype) -> None:
         """
         Returns structured output back to the user.
