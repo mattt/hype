@@ -1,8 +1,8 @@
 import warnings
-from abc import ABC, abstractmethod
-from collections.abc import Container, Iterable, Iterator
+from abc import ABC
+from collections.abc import Iterable
 from concurrent.futures import Future
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 import hype
 from hype.function import Function
