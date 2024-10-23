@@ -3,11 +3,6 @@ import warnings
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", DeprecationWarning)
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-
-
 from docstring_parser import parse as parse_docstring
 from fastapi import APIRouter, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -134,7 +129,16 @@ def create_fastapi_app(
         lifespan=lifespan,
     )
 
-    FastAPIInstrumentor.instrument_app(app)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        try:
+            from opentelemetry.instrumentation.fastapi import (  # pylint: disable=import-outside-toplevel
+                FastAPIInstrumentor,
+            )
+
+            FastAPIInstrumentor.instrument_app(app)
+        except ImportError:
+            pass
 
     app.add_exception_handler(ValueError, problem_exception_handler)
     app.add_exception_handler(HTTPException, problem_exception_handler)
