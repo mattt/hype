@@ -1,3 +1,5 @@
+import asyncio
+import os
 from typing import Annotated
 
 import pytest
@@ -271,3 +273,73 @@ def test_wait_preference():
     assert response.status_code == 200
     assert response.headers["Preference-Applied"] == "wait=15"
     assert response.json()["status"] == "completed"
+
+
+def test_request_blocking_respond_async():
+    app = FastAPI()
+
+    @app.post("/greet")
+    async def greet(
+        prefer: Annotated[list[str] | None, Header()] = None,
+    ) -> JSONResponse:
+        preferences = parse_prefer_headers(prefer)
+        if preferences.respond_async:
+            return JSONResponse(
+                status_code=202, content=None, headers={"Location": "/tasks/123"}
+            )
+        else:
+            return JSONResponse(status_code=201, content={"message": "Hello, world!"})
+
+    client = TestClient(app)
+    response = client.post("/greet", headers={"Prefer": "respond-async"})
+    assert response.status_code == 202
+    assert response.json() is None
+    assert response.headers["Location"] == "/tasks/123"
+
+    response = client.post("/greet")
+    assert response.status_code == 201
+    assert response.json() == {"message": "Hello, world!"}
+
+
+@pytest.mark.skipif(not os.environ.get("CI"), reason="Skip unless running in CI")
+def test_request_blocking_wait():
+    async def long_running_task():
+        await asyncio.sleep(1.1)
+        return JSONResponse(status_code=201, content={"message": "Goodbye, world!"})
+
+    app = FastAPI()
+
+    @app.post("/farewell")
+    async def farewell(
+        prefer: Annotated[list[str] | None, Header()] = None,
+    ) -> JSONResponse:
+        preferences = parse_prefer_headers(prefer)
+
+        task = asyncio.create_task(long_running_task())
+        done, _ = await asyncio.wait(
+            [task],
+            timeout=preferences.wait,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if done:
+            return done.pop().result()
+        else:
+            # If task was not completed within `wait` seconds, return the 202 response.
+            return JSONResponse(
+                status_code=202, content=None, headers={"Location": "/tasks/123"}
+            )
+
+    client = TestClient(app)
+
+    response = client.post("/farewell")
+    assert response.status_code == 201
+    assert response.json() == {"message": "Goodbye, world!"}
+
+    response = client.post("/farewell", headers={"Prefer": "wait=1"})
+    assert response.status_code == 202
+    assert response.json() is None
+    assert response.headers["Location"] == "/tasks/123"
+
+    response = client.post("/farewell", headers={"Prefer": "wait=10"})
+    assert response.status_code == 201
+    assert response.json() == {"message": "Goodbye, world!"}
