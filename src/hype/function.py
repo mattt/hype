@@ -22,7 +22,7 @@ from pydantic import (
     validate_call,
 )
 from pydantic.fields import FieldInfo
-from pydantic.json_schema import models_json_schema
+from pydantic.json_schema import JsonSchemaValue, models_json_schema
 
 Input = ParamSpec("Input")
 Output = TypeVar("Output")
@@ -72,7 +72,7 @@ class Function(BaseModel, Generic[Input, Output]):
         return self.output.model_json_schema()
 
     @property
-    def json_schema(self, title: str | None = None):
+    def json_schema(self, title: str | None = None) -> JsonSchemaValue:
         _, top_level_schema = models_json_schema(
             [(self.input, "validation"), (self.output, "validation")],
             title=title or self.name,
