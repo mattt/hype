@@ -23,7 +23,7 @@ build-backend = "hatchling.build"
 dev-dependencies = ["pytest>=8.3.3", "ruff>=0.7.0"]
 
 [tool.uv.pip]
-extra = ["http"]
+all-extras = true
 
 [tool.pylint.main]
 disable = [
