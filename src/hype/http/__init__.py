@@ -13,6 +13,7 @@ from hype.function import Function
 from hype.http.prefer import parse_prefer_headers
 from hype.http.problem import Problem, problem_exception_handler
 from hype.task import Tasks
+from hype.types.file import File as FileType
 
 
 class FileUploadRequest(BaseModel):
@@ -64,13 +65,17 @@ def add_fastapi_endpoint(
         __base__=func.output,
     )
 
+    callbacks = None
+    if isinstance(func.output, FileType):
+        callbacks = create_file_upload_callback_router(operation_id).routes
+
     @app.post(
         path,
         name=name,
         summary=summary,
         description=description,
         operation_id=operation_id,
-        callbacks=create_file_upload_callback_router(operation_id).routes,
+        callbacks=callbacks,
         responses={
             "default": {"model": Problem, "description": "Default error response"}
         },
