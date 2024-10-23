@@ -25,13 +25,13 @@ from typing import TypeVar
 
 import anthropic
 
-from hype.function import export
+import hype
 from hype.tools.anthropic import create_anthropic_tools
 
 Number = TypeVar("Number", int, float)
 
 
-@export
+@hype.up
 def calculate(expression: str) -> Number:
     """
     A simple calculator that performs basic arithmetic operations.
@@ -65,7 +65,7 @@ def calculate(expression: str) -> Number:
     return evaluate(tree.body)
 
 
-@export
+@hype.up
 def prime_factors(n: int) -> list[int]:
     """
     Calculate the prime factors of a given number efficiently.

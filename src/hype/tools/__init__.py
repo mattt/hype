@@ -4,7 +4,8 @@ from collections.abc import Container, Iterable, Iterator
 from concurrent.futures import Future
 from typing import Any, Generic, TypeVar
 
-from hype.function import Function, export
+import hype
+from hype.function import Function
 
 
 def create_capture_function(dtype: type) -> tuple[Function, Future]:
@@ -16,7 +17,7 @@ def create_capture_function(dtype: type) -> tuple[Function, Future]:
 
     future = Future()
 
-    @export
+    @hype.up
     def capture(value: dtype) -> None:
         """
         Returns structured output back to the user.
