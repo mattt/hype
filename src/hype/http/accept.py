@@ -153,7 +153,7 @@ class MediaRange(BaseModel):
         parts = [f"{self.type}/{self.subtype}"]
 
         # Add parameters except q
-        for key, value in self.parameters.items():
+        for key, value in self.parameters.items():  # pylint: disable=no-member
             parts.append(f"{key}={value}")
 
         # Add q-value if not default
@@ -166,7 +166,12 @@ class MediaRange(BaseModel):
         """Makes MediaRange hashable for use in sets and as dict keys."""
 
         return hash(
-            (self.type, self.subtype, frozenset(self.parameters.items()), self.q)
+            (
+                self.type,
+                self.subtype,
+                frozenset(self.parameters.items()),  # pylint: disable=no-member
+                self.q,
+            )
         )
 
 
