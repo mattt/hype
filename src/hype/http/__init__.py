@@ -145,7 +145,7 @@ def create_fastapi_app(
         task = app.state.tasks.get(id)
 
         if task is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+            raise HTTPException(status_code=404, detail="Task not found") from None
 
         return JSONResponse(status_code=200, content=task.to_dict())
 
@@ -154,7 +154,7 @@ def create_fastapi_app(
         task = app.state.tasks.get(id)
 
         if task is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+            raise HTTPException(status_code=404, detail="Task not found") from None
 
         task.cancel()
         return JSONResponse(status_code=200, content=task.to_dict())

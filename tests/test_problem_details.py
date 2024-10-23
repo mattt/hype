@@ -139,7 +139,7 @@ def test_problem_response_integration():
         try:
             return JSONResponse(content=items[item_id - 1])  # Adjust index by -1
         except IndexError:
-            raise HTTPException(status_code=404, detail="Item not found")
+            raise HTTPException(status_code=404, detail="Item not found") from None
 
     client = TestClient(app)
 
