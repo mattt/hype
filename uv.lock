@@ -167,7 +167,6 @@ http = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "opentelemetry-instrumentation-fastapi" },
-    { name = "python-multipart" },
     { name = "uvicorn" },
 ]
 testing = [
@@ -179,11 +178,10 @@ requires-dist = [
     { name = "docstring-parser", specifier = ">=0.16" },
     { name = "fastapi", marker = "extra == 'http'", specifier = ">=0.100.0" },
     { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27.2" },
-    { name = "opentelemetry-instrumentation-fastapi", marker = "extra == 'http'", specifier = ">=0.48b0" },
+    { name = "opentelemetry-instrumentation-fastapi", marker = "extra == 'http'" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'testing'" },
-    { name = "python-multipart", marker = "extra == 'http'", specifier = ">=0.0.12" },
-    { name = "uvicorn", marker = "extra == 'http'", specifier = ">=0.32.0" },
+    { name = "uvicorn", marker = "extra == 'http'" },
 ]
 
 [[package]]
@@ -411,15 +409,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8b/6c/62bbd536103af674e227c41a8f3dcd022d591f6eed5facb5a0f31ee33bbc/pytest-8.3.3.tar.gz", hash = "sha256:70b98107bd648308a7952b06e6ca9a50bc660be218d53c257cc1fc94fda10181", size = 1442487 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6b/77/7440a06a8ead44c7757a64362dd22df5760f9b12dc5f11b6188cd2fc27a0/pytest-8.3.3-py3-none-any.whl", hash = "sha256:a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2", size = 342341 },
-]
-
-[[package]]
-name = "python-multipart"
-version = "0.0.12"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/16/6e/7ecfe1366b9270f7f475c76fcfa28812493a6a1abd489b2433851a444f4f/python_multipart-0.0.12.tar.gz", hash = "sha256:045e1f98d719c1ce085ed7f7e1ef9d8ccc8c02ba02b5566d5f7521410ced58cb", size = 35713 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/0b/c316262244abea7481f95f1e91d7575f3dfcf6455d56d1ffe9839c582eb1/python_multipart-0.0.12-py3-none-any.whl", hash = "sha256:43dcf96cf65888a9cd3423544dd0d75ac10f7aa0c3c28a175bbcd00c9ce1aebf", size = 23246 },
 ]
 
 [[package]]
