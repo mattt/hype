@@ -184,7 +184,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27.2" },
     { name = "opentelemetry-instrumentation-fastapi", marker = "extra == 'http'" },
     { name = "pydantic", specifier = ">=2.0" },
-    { name = "python-multipart", marker = "extra == 'http'", specifier = ">=0.0.12" },
+    { name = "python-multipart", marker = "extra == 'http'" },
     { name = "uvicorn", marker = "extra == 'http'" },
 ]
 
