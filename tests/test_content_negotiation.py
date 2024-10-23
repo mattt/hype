@@ -67,7 +67,9 @@ def test_media_range_ordering():
             "*/*",
             "text/*",
             "text/plain",
+            "text/plain; charset=ascii",
             "text/plain; charset=utf-8",
+            "text/plain; charset=utf-8; format=compact",
         ]
     ]
     assert sorted(ranges) == ranges  # Verify complete ordering

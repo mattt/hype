@@ -138,14 +138,20 @@ class MediaRange(BaseModel):
         if self.q != other.q:
             return self.q < other.q
 
-        # Then compare specificity
+        # Compare specificity second
         if (self.type == "*") != (other.type == "*"):
             return self.type == "*"
         if (self.subtype == "*") != (other.subtype == "*"):
             return self.subtype == "*"
 
-        # Finally compare number of parameters
-        return len(self.parameters) < len(other.parameters)
+        # Compare number of parameters third
+        if len(self.parameters) != len(other.parameters):
+            return len(self.parameters) < len(other.parameters)
+
+        # Finally, compare keys lexicographically
+        self_keys = sorted(self.parameters.items())  # pylint: disable=no-member
+        other_keys = sorted(other.parameters.items())  # pylint: disable=no-member
+        return self_keys < other_keys
 
     def __str__(self) -> str:
         """Returns the string representation of the media range in Accept header format."""
