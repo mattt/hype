@@ -6,7 +6,7 @@ from typing import Annotated
 from docstring_parser import parse as parse_docstring
 from fastapi import APIRouter, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, create_model
 
 from hype.function import Function
@@ -19,23 +19,18 @@ class FileUploadRequest(BaseModel):
     file: UploadFile
 
 
-class FileUploadResponse(BaseModel):
-    ok: bool
-
-
 def create_file_upload_callback_router(source_operation_id: str) -> APIRouter:
     router = APIRouter()
 
     @router.put(
         "{$callback_url}/files/{$request.body.id}",
-        response_model=FileUploadResponse,
         operation_id=f"{source_operation_id}_file_upload_callback",
         summary="File upload callback endpoint",
     )
     def upload_file(
         request: FileUploadRequest = File(...),  # pylint: disable=unused-argument
-    ) -> FileUploadResponse:
-        return FileUploadResponse(ok=True)
+    ) -> Response:
+        return Response(status_code=204)
 
     return router
 
@@ -64,13 +59,17 @@ def add_fastapi_endpoint(
         __base__=func.output,
     )
 
+    callbacks = None
+    if False:  # TODO: Add file upload callback # pylint: disable=using-constant-test
+        callbacks = create_file_upload_callback_router(operation_id).routes
+
     @app.post(
         path,
         name=name,
         summary=summary,
         description=description,
         operation_id=operation_id,
-        callbacks=create_file_upload_callback_router(operation_id).routes,
+        callbacks=callbacks,
         responses={
             "default": {"model": Problem, "description": "Default error response"}
         },
