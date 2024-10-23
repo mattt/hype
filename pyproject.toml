@@ -7,11 +7,15 @@ requires-python = ">=3.10"
 dependencies = ["pydantic>=2.0", "docstring-parser>=0.16"]
 
 [project.optional-dependencies]
+http = ["fastapi>=0.100.0", "httpx>=0.27.2"]
 testing = ["pytest"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv.pip]
+extra = ["http"]
 
 [tool.pylint.main]
 disable = [
