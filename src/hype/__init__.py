@@ -1,4 +1,5 @@
-from hype.function import Function, wrap as up
+from hype.function import Function
+from hype.function import wrap as up
 from hype.http import create_fastapi_app
 from hype.tools.anthropic import create_anthropic_tools
 from hype.tools.ollama import create_ollama_tools
