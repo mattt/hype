@@ -81,25 +81,30 @@ def add_fastapi_endpoint(
         preferences = parse_prefer_headers(prefer)
 
         input_dict = input.model_dump(mode="python")
-        if asyncio.iscoroutinefunction(func):
-            task = asyncio.create_task(func(**input_dict))
-        else:
-            coroutine = asyncio.to_thread(func, **input_dict)
-            task = asyncio.create_task(coroutine)
+        try:
+            if asyncio.iscoroutinefunction(func):
+                task = asyncio.create_task(func(**input_dict))
+            else:
+                coroutine = asyncio.to_thread(func, **input_dict)
+                task = asyncio.create_task(coroutine)
 
-        id = app.state.tasks.defer(task)
-        done, _ = await asyncio.wait(
-            [task],
-            timeout=preferences.wait,
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        if done:
-            return done.pop().result()
-        else:
-            # If task was not completed within `wait` seconds, return the 202 response.
-            return JSONResponse(
-                status_code=202, content=None, headers={"Location": f"/tasks/{id}"}
+            id = app.state.tasks.defer(task)
+            done, _ = await asyncio.wait(
+                [task],
+                timeout=preferences.wait,
+                return_when=asyncio.FIRST_COMPLETED,
             )
+            if done:
+                try:
+                    return done.pop().result()
+                except Exception as e:
+                    raise RuntimeError(str(e)) from e
+            else:
+                return JSONResponse(
+                    status_code=202, content=None, headers={"Location": f"/tasks/{id}"}
+                )
+        except Exception as e:
+            raise RuntimeError(str(e)) from e
 
 
 def create_fastapi_app(
@@ -139,7 +144,7 @@ def create_fastapi_app(
         except ImportError:
             pass
 
-    app.add_exception_handler(ValueError, problem_exception_handler)
+    app.add_exception_handler(RuntimeError, problem_exception_handler)
     app.add_exception_handler(HTTPException, problem_exception_handler)
     app.add_exception_handler(RequestValidationError, problem_exception_handler)
 

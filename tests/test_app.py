@@ -296,3 +296,25 @@ def test_app_with_function_with_docstring_and_field_info():
         output = schema["components"]["schemas"]["divide_Output"]
         assert output["type"] == "integer"
         assert output["description"] == "The quotient"
+
+
+def test_app_with_function_that_raises_exception():
+    class CustomError(Exception):
+        pass
+
+    @hype.up
+    def fail() -> None:
+        """Intentionally raises an exception"""
+        raise CustomError("Something went wrong")
+
+    app = create_fastapi_app([fail])
+    with TestClient(app) as client:
+        response = client.post("/fail", json={})
+
+        assert response.status_code == 500
+        assert response.headers["content-type"] == "application/problem+json"
+
+        problem = response.json()
+        assert problem["status"] == 500
+        assert problem["title"] == "Application Error"
+        assert problem["detail"] == "Something went wrong"
