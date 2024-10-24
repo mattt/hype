@@ -80,7 +80,10 @@ class ProblemResponse(Response):
 
         self.status_code = problem.status or 500  # pylint: disable=attribute-defined-outside-init
 
-        return problem.model_dump_json(exclude_none=True).encode("utf-8")
+        return problem.model_dump_json(
+            exclude_none=True,
+            exclude={"type"} if problem.type == "about:blank" else {},
+        ).encode("utf-8")
 
 
 async def problem_exception_handler(

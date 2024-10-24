@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 
 import pytest
@@ -89,6 +90,22 @@ def test_problem_populate_by_name():
     assert problem.status == 404
 
 
+def test_problem_type_exclusion_in_serialization():
+    problem = Problem(
+        type="about:blank",
+        title="Some Error",
+        status=400,
+        detail="An error occurred.",
+    )
+    response = ProblemResponse(content=problem)
+    data = json.loads(response.render(problem).decode("utf-8"))
+
+    assert "type" not in data
+    assert "title" in data
+    assert "status" in data
+    assert "detail" in data
+
+
 def test_problem_response_integration():
     class Item(BaseModel):
         name: str
@@ -166,7 +183,6 @@ def test_problem_response_integration():
     assert response.status_code == 404
     assert response.headers["content-type"] == "application/problem+json"
     assert response.json() == {
-        "type": "about:blank",
         "status": 404,
         "detail": "Item not found",
     }
