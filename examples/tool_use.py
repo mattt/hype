@@ -23,10 +23,7 @@ import re
 from collections.abc import Callable
 from typing import TypeVar
 
-import anthropic
-
 import hype
-from hype.tools.anthropic import create_anthropic_tools
 
 Number = TypeVar("Number", int, float)
 
@@ -104,6 +101,10 @@ def prime_factors(n: int) -> list[int]:
 
 
 if __name__ == "__main__":
+    import anthropic
+
+    from hype.tools.anthropic import create_anthropic_tools
+
     client = anthropic.Anthropic()
     tools = create_anthropic_tools([calculate, prime_factors], result_type=bool)
 
