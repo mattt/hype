@@ -24,25 +24,89 @@ class FunctionCommand(click.Command):
             for name, prop in schema["properties"].items():
                 description = prop.get("description", "No description")
                 help_text += f"  {name}: {description}\n"
+
         super().__init__(
             name=function.name, help=help_text, callback=self.invoke_function, **kwargs
         )
+
+        # Add all parameters as options that can be used both positionally and with flags
+        required_params = schema.get("required", [])
         for name, prop in schema.get("properties", {}).items():
-            param_type = str
-            if prop.get("type") == "integer":
-                param_type = int
-            elif prop.get("type") == "number":
-                param_type = float
-            elif prop.get("type") == "boolean":
-                param_type = bool
-            self.params.append(
-                click.Option(
-                    ["--" + name],
-                    type=param_type,
-                    required=name in schema.get("required", []),
-                    help=prop.get("description"),
-                )
+            self._append_option(name, prop, required=(name in required_params))
+
+    def _append_option(self, name: str, prop: dict, required: bool) -> None:
+        """Add a click Option to the command's parameters.
+
+        Args:
+            name: Parameter name
+            prop: Parameter properties from the schema
+            required: Whether the parameter is required
+        """
+        param_type = self._get_param_type(prop)
+        self.params.append(
+            click.Option(
+                ["--" + name],
+                type=param_type,
+                required=required,
+                is_flag=False,
+                help=prop.get("description"),
             )
+        )
+
+    def _get_param_type(self, prop: dict) -> Any:
+        """Helper method to determine parameter type."""
+        param_type = str
+        if prop.get("type") == "integer":
+            param_type = int
+        elif prop.get("type") == "number":
+            param_type = float
+        elif prop.get("type") == "boolean":
+            param_type = bool
+        return param_type
+
+    def parse_args(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[list[str], list[str], list[str]]:
+        """Override to handle positional arguments for required parameters."""
+        # Handle the -- separator
+        if "--" in args:
+            idx = args.index("--")
+            before_sep = args[:idx]
+            after_sep = args[idx + 1 :]
+            # Convert everything after -- into a single positional argument
+            if after_sep:
+                args = before_sep + [" ".join(after_sep)]
+            else:
+                args = before_sep
+
+        # Split args into positional and named
+        positional = []
+        named = []
+
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg.startswith("-"):
+                named.append(arg)
+                if i + 1 < len(args) and not args[i + 1].startswith("-"):
+                    named.append(args[i + 1])
+                    i += 1
+            else:
+                positional.append(arg)
+            i += 1
+
+        # Map positional args to required parameters in order
+        required_params = [p for p in self.params if p.required]
+        if len(positional) > len(required_params):
+            raise click.UsageError(
+                f"Got unexpected extra argument ({' '.join(positional[len(required_params):])})"
+            )
+
+        # Convert positional args into named args
+        for param, value in zip(required_params, positional, strict=False):
+            named.extend([f"--{param.name}", value])
+
+        return super().parse_args(ctx, named)
 
     def invoke_function(self, **kwargs: Any) -> None:
         """Execute the wrapped function with provided arguments."""
@@ -96,11 +160,17 @@ class ModuleGroup(click.Group):
         return sorted(self.commands)
 
 
-@click.command(context_settings={"ignore_unknown_options": True})
+@click.command(
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
+)
 @click.argument("module_path", type=click.Path(exists=True), required=False)
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
 def run(module_path: str | None, args: tuple[str, ...]) -> None:
-    """Run a function from a Python module."""
+    """Run a function from a Python module.
+
+    MODULE_PATH is the path to your Python module containing functions.
+    Any additional arguments will be passed to the specified function.
+    """
     if module_path is None:
         ctx = click.get_current_context()
         click.echo(ctx.get_help())
