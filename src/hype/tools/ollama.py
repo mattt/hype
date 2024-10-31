@@ -32,7 +32,7 @@ class OllamaTools(Tools[Result], list, Sequence["Tool"]):
             return list(self)[key]
         return self._tools[key]
 
-    def __call__(self, tool_calls: list["ToolCall"]) -> list[Result]:
+    def __call__(self, tool_calls: list["ToolCall"]) -> list[Any]:
         outputs = []
         for tool_call in tool_calls:
             if not (function := self._tools.get(tool_call["function"]["name"])):
