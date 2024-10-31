@@ -14,9 +14,10 @@ from hype.cli.utils import find_functions, import_module_from_path
 class FunctionCommand(click.Command):
     """Custom command class for function invocation."""
 
-    def __init__(self, function: Function, **kwargs: Any) -> None:
+    def __init__(self, function: Function, module_path: str, **kwargs: Any) -> None:
         self.function = function
         self.output_file = kwargs.pop("output_file", None)
+        self.module_path = module_path
 
         help_text = function.description or ""
 
@@ -146,7 +147,6 @@ class FunctionCommand(click.Command):
 
     def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """Format the usage line."""
-
         # Get required parameters
         required_params = [
             param.name.upper()
@@ -154,12 +154,15 @@ class FunctionCommand(click.Command):
             if param.name not in ["output", "help"] and param.required
         ]
 
+        # Build the full command path including the complete module path
+        command_path = f"hype run {self.module_path} {self.name}"
+
         # Format usage line
-        usage = f"{ctx.command.name} [OPTIONS]"
+        usage = "[OPTIONS]"
         if required_params:
             usage += " " + " ".join(required_params)
 
-        formatter.write_usage("hype run", usage)
+        formatter.write_usage(command_path, usage)
 
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """Custom help formatter to improve the layout."""
@@ -213,6 +216,10 @@ class ModuleGroup(click.Group):
     def __init__(
         self, module_path: str, output_file: str | None = None, **kwargs: Any
     ) -> None:
+        # Store full module path
+        self.full_module_path = module_path
+        # Use basename for the name to keep display clean
+        kwargs["name"] = os.path.basename(module_path)
         super().__init__(**kwargs)
         self.module_path = module_path
         self.output_file = output_file
@@ -226,7 +233,11 @@ class ModuleGroup(click.Group):
         module = import_module_from_path(self.module_path)
         self._functions = find_functions(module)
         for function in self._functions:
-            self.add_command(FunctionCommand(function, output_file=self.output_file))
+            self.add_command(
+                FunctionCommand(
+                    function, module_path=self.module_path, output_file=self.output_file
+                )
+            )
         self._loaded = True
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
