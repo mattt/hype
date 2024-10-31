@@ -50,6 +50,7 @@ class FunctionCommand(click.Command):
                 required=required,
                 is_flag=False,
                 help=prop.get("description"),
+                default=prop.get("default"),
             )
         )
 
@@ -82,28 +83,33 @@ class FunctionCommand(click.Command):
         # Split args into positional and named
         positional = []
         named = []
+        used_param_names = set()  # Track which parameters have been used
 
-        i = 0
-        while i < len(args):
-            arg = args[i]
+        for i, arg in enumerate(args):
             if arg.startswith("-"):
                 named.append(arg)
+                param_name = arg.lstrip("-")
+                used_param_names.add(param_name)
+                # Check if next arg exists and is a value (not a flag)
                 if i + 1 < len(args) and not args[i + 1].startswith("-"):
                     named.append(args[i + 1])
-                    i += 1
+            elif i > 0 and args[i - 1].startswith("-"):
+                # Skip values that were already handled as part of a named arg
+                continue
             else:
                 positional.append(arg)
-            i += 1
 
-        # Map positional args to required parameters in order
-        required_params = [p for p in self.params if p.required]
-        if len(positional) > len(required_params):
+        # Check if we have too many positional arguments
+        if len(positional) > len(self.params):
             raise click.UsageError(
-                f"Got unexpected extra argument ({' '.join(positional[len(required_params):])})"
+                f"Got unexpected extra argument ({' '.join(positional[len(self.params):])})"
             )
 
         # Convert positional args into named args
-        for param, value in zip(required_params, positional, strict=False):
+        for param, value in zip(self.params, positional, strict=False):
+            # Check if this parameter was already provided as a named argument
+            if param.name in used_param_names:
+                raise click.UsageError(f"Got unexpected extra argument ({value})")
             named.extend([f"--{param.name}", value])
 
         return super().parse_args(ctx, named)
@@ -111,9 +117,13 @@ class FunctionCommand(click.Command):
     def invoke_function(self, **kwargs: Any) -> None:
         """Execute the wrapped function with provided arguments."""
         try:
-            result = self.function(**kwargs)
+            # Filter out None values for optional parameters
+            filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
+            result = self.function(**filtered_kwargs)
             if isinstance(result, BaseModel):
                 result = result.model_dump()
+
             click.echo(result)
         except Exception as e:
             raise click.ClickException(str(e)) from e
