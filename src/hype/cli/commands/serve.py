@@ -44,8 +44,21 @@ def serve(
     reload: bool,
     reload_dir: tuple[str, ...],
 ) -> None:
-    """Serve functions from a Python module as a FastAPI application."""
+    """Serve functions from a Python module as a FastAPI application.
+
+    The server watches for file changes and automatically reloads when files are modified.
+
+    Examples:
+      # Start server on default port 4973
+      hype serve path/to/module.py
+
+      # Start on custom port with auto-reload disabled
+      hype serve path/to/module.py --port 8000 --no-reload
+    """
     try:
+        if not os.path.isfile(module_path):
+            raise click.ClickException(f"File not found: {module_path}")
+
         module_dir = os.path.dirname(os.path.abspath(module_path))
         if module_dir not in sys.path:
             sys.path.insert(0, module_dir)
