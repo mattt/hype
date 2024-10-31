@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from difflib import get_close_matches
@@ -13,23 +14,30 @@ from hype.cli.utils import find_functions, import_module_from_path
 class FunctionCommand(click.Command):
     """Custom command class for function invocation."""
 
-    def __init__(self, function: Function, **kwargs: Any) -> None:
+    def __init__(self, function: Function, module_path: str, **kwargs: Any) -> None:
         self.function = function
+        self.output_file = kwargs.pop("output_file", None)
+        self.module_path = module_path
+
         help_text = function.description or ""
-        if help_text:
-            help_text += "\n\n"
-        schema = function.input_schema
-        if "properties" in schema:
-            help_text += "Parameters:\n"
-            for name, prop in schema["properties"].items():
-                description = prop.get("description", "No description")
-                help_text += f"  {name}: {description}\n"
 
         super().__init__(
             name=function.name, help=help_text, callback=self.invoke_function, **kwargs
         )
 
-        # Add all parameters as options that can be used both positionally and with flags
+        # Add built-in options first
+        self.params.append(
+            click.Option(
+                ["--output"],
+                type=click.Path(writable=True),
+                required=False,
+                help="Write output to a JSON file",
+                is_flag=False,
+            )
+        )
+
+        # Add function-specific parameters as options
+        schema = function.input_schema  # Get schema from the function object
         required_params = schema.get("required", [])
         for name, prop in schema.get("properties", {}).items():
             self._append_option(name, prop, required=(name in required_params))
@@ -99,14 +107,19 @@ class FunctionCommand(click.Command):
             else:
                 positional.append(arg)
 
+        # Get function parameters (excluding built-in options)
+        function_params = [
+            param for param in self.params if param.name not in ["output", "help"]
+        ]
+
         # Check if we have too many positional arguments
-        if len(positional) > len(self.params):
+        if len(positional) > len(function_params):
             raise click.UsageError(
-                f"Got unexpected extra argument ({' '.join(positional[len(self.params):])})"
+                f"Got unexpected extra argument ({' '.join(positional[len(function_params):])})"
             )
 
         # Convert positional args into named args
-        for param, value in zip(self.params, positional, strict=False):
+        for param, value in zip(function_params, positional, strict=False):
             # Check if this parameter was already provided as a named argument
             if param.name in used_param_names:
                 raise click.UsageError(f"Got unexpected extra argument ({value})")
@@ -124,17 +137,92 @@ class FunctionCommand(click.Command):
             if isinstance(result, BaseModel):
                 result = result.model_dump()
 
-            click.echo(result)
+            if self.output_file:
+                with open(self.output_file, "w") as f:
+                    json.dump(result, f, indent=2)
+            else:
+                click.echo(result)
         except Exception as e:
             raise click.ClickException(str(e)) from e
+
+    def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """Format the usage line."""
+        # Get required parameters
+        required_params = [
+            param.name.upper()
+            for param in self.params
+            if param.name not in ["output", "help"] and param.required
+        ]
+
+        # Build the full command path including the complete module path
+        command_path = f"hype run {self.module_path} {self.name}"
+
+        # Format usage line
+        usage = "[OPTIONS]"
+        if required_params:
+            usage += " " + " ".join(required_params)
+
+        formatter.write_usage(command_path, usage)
+
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """Custom help formatter to improve the layout."""
+        self.format_usage(ctx, formatter)
+        self.format_help_text(ctx, formatter)
+        self.format_options(ctx, formatter)
+
+    def format_help_text(
+        self, ctx: click.Context, formatter: click.HelpFormatter
+    ) -> None:
+        """Format the help text."""
+        if self.help:
+            formatter.write_paragraph()
+            formatter.write_text(self.help)
+
+    def format_options(
+        self, ctx: click.Context, formatter: click.HelpFormatter
+    ) -> None:
+        """Format the options sections."""
+        built_in_opts = []
+        function_opts = []
+
+        for param in self.get_params(ctx):
+            if param.name in ["output", "help"]:
+                built_in_opts.append(param)
+            else:
+                function_opts.append(param)
+
+        if function_opts:
+            with formatter.section("Parameters"):
+                with formatter.indentation():
+                    for param in function_opts:
+                        formatter.write_text(f"--{param.name}")
+                        if param.help:
+                            with formatter.indentation():
+                                formatter.write_text(param.help)
+                        if param.required:
+                            with formatter.indentation():
+                                formatter.write_text("[required]")
+
+        if built_in_opts:
+            with formatter.section("Options"):
+                with formatter.indentation():
+                    for param in built_in_opts:
+                        formatter.write_dl([param.get_help_record(ctx)])
 
 
 class ModuleGroup(click.Group):
     """Custom group class that loads commands from a module."""
 
-    def __init__(self, module_path: str, **kwargs: Any) -> None:
+    def __init__(
+        self, module_path: str, output_file: str | None = None, **kwargs: Any
+    ) -> None:
+        # Store full module path
+        self.full_module_path = module_path
+        # Use basename for the name to keep display clean
+        kwargs["name"] = os.path.basename(module_path)
         super().__init__(**kwargs)
         self.module_path = module_path
+        self.output_file = output_file
         self._loaded = False
         self._functions: list[Function] = []
 
@@ -145,7 +233,11 @@ class ModuleGroup(click.Group):
         module = import_module_from_path(self.module_path)
         self._functions = find_functions(module)
         for function in self._functions:
-            self.add_command(FunctionCommand(function))
+            self.add_command(
+                FunctionCommand(
+                    function, module_path=self.module_path, output_file=self.output_file
+                )
+            )
         self._loaded = True
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
@@ -174,12 +266,21 @@ class ModuleGroup(click.Group):
     context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
 )
 @click.argument("module_path", type=click.Path(exists=True), required=False)
+@click.option(
+    "--output", type=click.Path(writable=True), help="Write output to a JSON file"
+)
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def run(module_path: str | None, args: tuple[str, ...]) -> None:
+def run(module_path: str | None, output: str | None, args: tuple[str, ...]) -> None:
     """Run a function from a Python module.
 
     MODULE_PATH is the path to your Python module containing functions.
-    Any additional arguments will be passed to the specified function.
+    Any additional arguments are passed to the specified function.
+
+    The function output can be written to a JSON file using the --output option:
+
+        $ hype run example.py --output results.json my_function --param1 value1
+
+    When --output isn't specified, results are printed to stdout.
     """
     if module_path is None:
         ctx = click.get_current_context()
@@ -193,6 +294,7 @@ def run(module_path: str | None, args: tuple[str, ...]) -> None:
 
         group = ModuleGroup(
             module_path=module_path,
+            output_file=output,
             name=os.path.basename(module_path),
             help="Available functions in this module.",
         )

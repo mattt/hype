@@ -1,5 +1,7 @@
 import threading
 import time
+import json
+import os
 
 import httpx
 from click.testing import CliRunner
@@ -210,3 +212,102 @@ def test_serve_with_custom_options(tmp_path, mocker):
     assert call_args["reload"] is True
     assert isinstance(call_args["reload_dirs"], list)
     assert "extra_dir" in call_args["reload_dirs"]
+
+
+def test_run_with_output_file(tmp_path):
+    """Test that results can be written to an output file."""
+    module_path = setup_test_module(tmp_path)
+    output_file = tmp_path / "output.json"
+    runner = CliRunner()
+
+    result = runner.invoke(
+        run, 
+        [str(module_path), "--output", str(output_file), "greet", "Alice"]
+    )
+    
+    assert result.exit_code == 0
+    assert result.output == ""  # Nothing should be printed to stdout
+    assert output_file.exists()
+    
+    with open(output_file) as f:
+        content = json.load(f)
+        assert content == "Hello Dr. Alice!"
+
+
+def test_run_with_output_file_complex_result(tmp_path):
+    """Test that complex results are properly serialized to JSON."""
+    # Add a function that returns a complex type to the test module
+    module_path = tmp_path / "test_module.py"
+    module_path.write_text("""
+import hype
+from pydantic import BaseModel
+
+class Person(BaseModel):
+    name: str
+    age: int
+
+@hype.up
+def create_person(name: str, age: int) -> Person:
+    '''Create a person object.
+    
+    Args:
+        name: Person's name
+        age: Person's age
+    '''
+    return Person(name=name, age=age)
+""")
+    
+    output_file = tmp_path / "output.json"
+    runner = CliRunner()
+
+    result = runner.invoke(
+        run, 
+        [str(module_path), "--output", str(output_file), "create_person", 
+         "--name", "Alice", "--age", "30"]
+    )
+    
+    assert result.exit_code == 0
+    assert result.output == ""  # Nothing should be printed to stdout
+    assert output_file.exists()
+    
+    with open(output_file) as f:
+        content = json.load(f)
+        assert content == {"name": "Alice", "age": 30}
+
+
+def test_run_with_invalid_output_path(tmp_path):
+    """Test handling of invalid output file paths."""
+    module_path = setup_test_module(tmp_path)
+    # Try to write to a path that doesn't exist
+    invalid_path = tmp_path / "nonexistent" / "output.json"
+    runner = CliRunner()
+
+    result = runner.invoke(
+        run, 
+        [str(module_path), "--output", str(invalid_path), "greet", "Alice"]
+    )
+    
+    assert result.exit_code != 0
+    assert "Error" in result.output
+    assert not invalid_path.exists()
+
+
+def test_run_with_output_file_permission_error(tmp_path):
+    """Test handling of permission errors when writing output."""
+    module_path = setup_test_module(tmp_path)
+    output_file = tmp_path / "output.json"
+    
+    # Create the file with read-only permissions
+    output_file.touch()
+    os.chmod(output_file, 0o444)  # Read-only for everyone
+    
+    runner = CliRunner()
+
+    result = runner.invoke(
+        run, 
+        [str(module_path), "--output", str(output_file), "greet", "Alice"]
+    )
+    
+    assert result.exit_code != 0
+    assert "Error" in result.output
+
