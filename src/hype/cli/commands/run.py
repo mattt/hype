@@ -1,5 +1,6 @@
 import os
 import sys
+from difflib import get_close_matches
 from typing import Any
 
 import click
@@ -75,7 +76,20 @@ class ModuleGroup(click.Group):
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
         self._load_commands()
-        return super().get_command(ctx, cmd_name)
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is None and self._functions:
+            # Get list of available function names
+            available_commands = list(self.commands.keys())
+            # Find similar commands using difflib
+            suggestions = get_close_matches(
+                cmd_name, available_commands, n=3, cutoff=0.6
+            )
+            if suggestions:
+                suggestion_msg = "\nDid you mean one of these?\n    " + "\n    ".join(
+                    suggestions
+                )
+                ctx.fail(f"No such command: {cmd_name}{suggestion_msg}")
+        return cmd
 
     def list_commands(self, ctx: click.Context) -> list[str]:
         self._load_commands()
