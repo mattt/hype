@@ -11,19 +11,25 @@ from hype.cli.utils import find_functions, get_reload_dirs, import_module_from_p
 
 def create_app() -> FastAPI:
     """Create the FastAPI application."""
-
+    click.echo("Loading module...")
     module_path = os.environ.get("HYPE_MODULE_PATH")
     if module_path is None:
         raise RuntimeError("HYPE_MODULE_PATH environment variable not set")
 
     module = import_module_from_path(module_path)
     functions = find_functions(module)
-    click.echo(f"Found {len(functions)} functions")
+
     if not functions:
         raise click.ClickException(
-            f"No hype functions found in {module_path}. "
+            f"No hype functions found in {module_path}.\n"
             "Make sure your functions are decorated with @hype.up"
         )
+
+    function_count = len(functions)
+    click.echo(
+        f"✓ Found {function_count} {'function' if function_count == 1 else 'functions'}"
+    )
+    click.echo("✓ API server ready")
     return create_fastapi_app(functions)
 
 
@@ -69,6 +75,8 @@ def serve(
         if reload_dir:
             reload_dirs.extend(reload_dir)
         click.echo(f"Watching directories for changes: {reload_dirs}")
+
+        click.echo(f"Starting server at http://{host}:{port}")
 
         uvicorn.run(
             "hype.cli.commands.serve:create_app",
