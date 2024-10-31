@@ -83,10 +83,15 @@ class ModuleGroup(click.Group):
 
 
 @click.command(context_settings={"ignore_unknown_options": True})
-@click.argument("module_path", type=click.Path(exists=True))
+@click.argument("module_path", type=click.Path(exists=True), required=False)
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def run(module_path: str, args: tuple[str, ...]) -> None:
+def run(module_path: str | None, args: tuple[str, ...]) -> None:
     """Run a function from a Python module."""
+    if module_path is None:
+        ctx = click.get_current_context()
+        click.echo(ctx.get_help())
+        ctx.exit()
+
     try:
         module_dir = os.path.dirname(os.path.abspath(module_path))
         if module_dir not in sys.path:
