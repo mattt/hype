@@ -294,6 +294,8 @@ class FunctionCommand(click.Command):
                 click.echo(json.dumps(output, default=str))
             else:
                 click.echo(output)
+        else:
+            click.echo(f"Error: {job.error.message}", err=True)
 
     def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """Format the usage line."""
