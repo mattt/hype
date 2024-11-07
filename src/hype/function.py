@@ -59,11 +59,11 @@ class Function(BaseModel, Generic[Parameters, Return]):
             input=input,
             output=output,
         )
-        function._wrapped = value
+        function._wrapped = validate_call(validate_return=True)(value)
         return function
 
     def __call__(self, *args: Parameters.args, **kwargs: Parameters.kwargs) -> Return:  # pylint: disable=no-member
-        return validate_call(validate_return=True)(self._wrapped)(*args, **kwargs)
+        return self._wrapped(*args, **kwargs)
 
     @property
     def input_schema(self) -> dict[str, Any]:
