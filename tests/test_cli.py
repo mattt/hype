@@ -60,19 +60,22 @@ def test_run_optional_args(runner, temp_module):
 # Error cases
 def test_run_missing_required_arg(runner, temp_module):
     result = runner.invoke(run, [temp_module, "add", "--b", "2"])
-    assert result.exit_code != 0
-    assert "Missing parameter: a" in result.output
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
+    assert "Missing option '--a'" in result.output
 
 
 def test_run_extra_args(runner, temp_module):
     result = runner.invoke(run, [temp_module, "add", "1", "2", "3", "4"])
-    assert result.exit_code != 0
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
     assert "Got unexpected extra argument" in result.output
 
 
 def test_run_invalid_function_name(runner, temp_module):
     result = runner.invoke(run, [temp_module, "sad"])
-    assert result.exit_code != 0
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
     assert "No such command: sad" in result.output
     assert "Did you mean one of these?" in result.output  # Should suggest similar names
 
@@ -86,7 +89,9 @@ def test_run_with_output_file(runner, temp_module, tmp_path):
     if result.exit_code != 0:
         raise AssertionError(f"Command failed with: {result.output}")
     assert result.output == ""
-    assert json.loads(output_file.read_text()) == 3
+    data = json.loads(output_file.read_text())
+    assert data["status"] == "success"
+    assert data["output"] == 3
 
 
 def test_run_with_json_input(runner, temp_module, tmp_path):
@@ -95,7 +100,7 @@ def test_run_with_json_input(runner, temp_module, tmp_path):
     result = runner.invoke(run, [temp_module, "echo", "--input", str(input_file)])
     if result.exit_code != 0:
         raise AssertionError(f"Command failed with: {result.output}")
-    assert json.loads(result.output.strip()) == "hello"
+    assert result.output.strip() == "hello"
 
 
 def test_run_with_jsonl_input(runner, temp_module, tmp_path):
@@ -117,15 +122,16 @@ def test_run_with_jsonl_input(runner, temp_module, tmp_path):
     if result.exit_code != 0:
         raise AssertionError(f"Command failed with: {result.output}")
     outputs = output_file.read_text().strip().split("\n")
-    assert json.loads(outputs[0]) == 6  # 1 + 2 + 3
-    assert json.loads(outputs[1]) == 7  # 3 + 4
+    assert json.loads(outputs[0])["output"] == 6  # 1 + 2 + 3
+    assert json.loads(outputs[1])["output"] == 7  # 3 + 4
 
 
 def test_run_empty_input_file(runner, temp_module, tmp_path):
     input_file = tmp_path / "empty.json"
     input_file.write_text("")
     result = runner.invoke(run, [temp_module, "add", "--input", str(input_file)])
-    assert result.exit_code != 0
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
     assert "Input file is empty" in result.output
 
 
@@ -133,7 +139,8 @@ def test_run_invalid_json_input(runner, temp_module, tmp_path):
     input_file = tmp_path / "invalid.json"
     input_file.write_text("{invalid json}")
     result = runner.invoke(run, [temp_module, "add", "--input", str(input_file)])
-    assert result.exit_code != 0
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
     assert "Invalid JSON" in result.output
 
 
@@ -143,7 +150,8 @@ def test_run_input_with_args_error(runner, temp_module, tmp_path):
     result = runner.invoke(
         run, [temp_module, "add", "--input", str(input_file), "--a", "1"]
     )
-    assert result.exit_code != 0
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
     assert "Cannot specify function arguments when using --input" in result.output
 
 
@@ -151,13 +159,15 @@ def test_run_duplicate_argument(runner, temp_module):
     result = runner.invoke(
         run, [temp_module, "add", "--a", "1", "--a", "2", "--b", "3"]
     )
-    assert result.exit_code != 0
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
     assert "Got multiple values for argument 'a'" in result.output
 
 
 def test_run_missing_option_value(runner, temp_module):
     result = runner.invoke(run, [temp_module, "add", "--a"])
-    assert result.exit_code != 0
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
     assert "Option --a requires an argument" in result.output
 
 
@@ -181,16 +191,137 @@ def test_run_module_help(runner, temp_module):
 def test_run_with_json_array_input(runner, temp_module, tmp_path):
     input_file = tmp_path / "input.json"
     input_file.write_text(json.dumps([{"a": 1, "b": 2}, {"a": 3, "b": 4}]))
+
+    result = runner.invoke(run, [temp_module, "add", "--input", str(input_file)])
+    if result.exit_code == 0:
+        raise AssertionError(f"Command succeeded with: {result.output}")
+    assert "validation error" in result.output
+
+
+def test_run_with_metadata(runner, temp_module, tmp_path):
+    """Test that output includes metadata when writing to a file."""
+    output_file = tmp_path / "output.json"
+    result = runner.invoke(
+        run, [temp_module, "--output", str(output_file), "add", "1", "2"]
+    )
+    assert result.exit_code == 0
+
+    with open(output_file, encoding="utf-8") as f:
+        data = json.loads(f.read())
+
+    # Check the shape of the output JSON
+    assert isinstance(data, dict)
+    assert data["status"] == "success"
+    assert data["output"] == 3
+    assert data["error"] is None
+    assert "id" in data
+    assert "started_at" in data
+    assert "completed_at" in data
+    assert data["started_at"] < data["completed_at"]
+
+
+def test_batch_processing_with_failures(runner, temp_module, tmp_path):
+    """Test batch processing with mixed successes and failures."""
+    input_file = tmp_path / "input.jsonl"
+    input_lines = [
+        json.dumps(input)
+        for input in [
+            {"a": 1, "b": 2},
+            {"a": "invalid", "b": 2},
+            {"a": 3, "b": 4},
+        ]
+    ]
+    input_file.write_text("\n".join(input_lines))
+    output_file = tmp_path / "output.json"
+
+    result = runner.invoke(
+        run,
+        [temp_module, "add", "--input", str(input_file), "--output", str(output_file)],
+    )
+    if result.exit_code != 0:
+        raise AssertionError(f"Command failed with: {result.output}")
+
+    with open(output_file, encoding="utf-8") as f:
+        jobs = json.loads(f.read())
+
+    assert isinstance(jobs, list)
+    assert len(jobs) == 3
+
+    # Check first result (success)
+    assert jobs[0]["status"] == "success"
+    assert jobs[0]["output"] == 3
+    assert jobs[0]["error"] is None
+
+    # Check second result (failure)
+    assert jobs[1]["status"] == "failure"
+    assert jobs[1]["output"] is None
+    assert isinstance(jobs[1]["error"], dict)
+    assert "validation error" in jobs[1]["error"]["message"]
+
+    # Check third result (success)
+    assert jobs[2]["status"] == "success"
+    assert jobs[2]["output"] == 7
+    assert jobs[2]["error"] is None
+
+
+def test_batch_processing_jsonl(runner, temp_module, tmp_path):
+    """Test batch processing with JSONL input and output."""
+    input_file = tmp_path / "input.jsonl"
+    input_lines = [
+        json.dumps(input)
+        for input in [
+            {"a": 1, "b": 2},
+            {"a": "invalid", "b": 2},
+            {"a": 3, "b": 4},
+        ]
+    ]
+    input_file.write_text("\n".join(input_lines))
     output_file = tmp_path / "output.jsonl"
 
     result = runner.invoke(
         run,
         [temp_module, "add", "--input", str(input_file), "--output", str(output_file)],
     )
+    if result.exit_code != 0:
+        raise AssertionError(f"Command failed with: {result.output}")
+
+    with open(output_file, encoding="utf-8") as f:
+        jobs = [json.loads(line) for line in f]
+
+    # Check first result (success)
+    assert jobs[0]["status"] == "success"
+    assert jobs[0]["output"] == 3
+    assert jobs[0]["error"] is None
+
+    # Check second result (failure)
+    assert jobs[1]["status"] == "failure"
+    assert jobs[1]["output"] is None
+    assert isinstance(jobs[1]["error"], dict)
+    assert "validation error" in jobs[1]["error"]["message"]
+
+    # Check third result (success)
+    assert jobs[2]["status"] == "success"
+    assert jobs[2]["output"] == 7
+    assert jobs[2]["error"] is None
+
+
+def test_stdout_format(runner, temp_module):
+    """Test that stdout format includes execution metadata."""
+    result = runner.invoke(run, [temp_module, "add", "1", "2"])
     assert result.exit_code == 0
-    outputs = output_file.read_text().strip().split("\n")
-    assert json.loads(outputs[0]) == 3  # 1 + 2
-    assert json.loads(outputs[1]) == 7  # 3 + 4
+
+    assert json.loads(result.output.strip()) == 3
+
+
+def test_stdout_batch_format(runner, temp_module, tmp_path):
+    """Test that stdout includes metadata for batch operations."""
+    input_file = tmp_path / "input.json"
+    input_file.write_text(json.dumps({"a": 1, "b": 2}))
+
+    result = runner.invoke(run, [temp_module, "add", "--input", str(input_file)])
+    assert result.exit_code == 0
+
+    assert json.loads(result.output.strip()) == 3
 
 
 # Serve tests

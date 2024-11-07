@@ -3,15 +3,16 @@ import os
 import sys
 import textwrap
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from difflib import get_close_matches
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any
 
 import click
-from pydantic import BaseModel
 
 from hype import Function
 from hype.cli.utils import find_functions, import_module_from_path
+from hype.job import Batch, Error, Job, Status
 
 
 class FunctionCommand(click.Command):
@@ -29,7 +30,7 @@ class FunctionCommand(click.Command):
         help_text = function.description or ""
 
         super().__init__(
-            name=function.name, help=help_text, callback=self.invoke_function, **kwargs
+            name=function.name, help=help_text, callback=self.invoke, **kwargs
         )
 
         # Add built-in options first
@@ -186,133 +187,113 @@ class FunctionCommand(click.Command):
 
         return super().parse_args(ctx, named)
 
-    def _read_inputs(self, input_file: str) -> Iterator[dict]:
-        """Read inputs from a JSON or JSON Lines file."""
-        path = Path(input_file)
+    def _read_input(self, file: str) -> dict | None:
+        """Read input from a JSON file."""
+        path = Path(file)
         with path.open(encoding="utf-8") as f:
             content = f.read().strip()
             if not content:
                 raise click.ClickException("Input file is empty")
 
-            # Try to parse as single JSON first
             try:
                 data = json.loads(content)
-                if isinstance(data, list):
-                    for item in data:
-                        if not isinstance(item, dict):
-                            raise click.ClickException(
-                                f"Invalid input data: expected object, got {type(item)}"
-                            )
-                        yield item
-                else:
-                    if not isinstance(data, dict):
-                        raise click.ClickException(
-                            f"Invalid input data: expected object, got {type(data)}"
-                        )
-                    yield data
-                return
+                return data
             except json.JSONDecodeError as e:
-                # If single JSON parse failed, try as JSON Lines
-                f.seek(0)
-                for line_num, line in enumerate(f, 1):
-                    line = line.strip()
-                    if line:  # Skip empty lines
-                        try:
-                            data = json.loads(line)
-                            if not isinstance(data, dict):
-                                raise click.ClickException(
-                                    f"Invalid input data on line {line_num}: expected object, got {type(data)}"
-                                ) from e
-                            yield data
-                        except json.JSONDecodeError as ee:
-                            raise click.ClickException(
-                                f"Invalid JSON on line {line_num}: {ee}"
-                            ) from ee
+                raise click.ClickException(f"Invalid JSON in input file: {e}") from e
 
-    def _write_output(self, f: TextIO, result: Any, is_jsonl: bool) -> None:
-        """Write output in the appropriate format."""
-        if isinstance(result, BaseModel):
-            result = result.model_dump()
-        if is_jsonl:
-            json.dump(result, f, indent=None)
-            f.write("\n")
-        else:
-            json.dump(result, f, indent=2)
+    def _read_batch_inputs(self, file: str) -> Iterator[dict]:
+        """Read inputs from a JSON Lines file."""
+        path = Path(file)
+        with path.open(encoding="utf-8") as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if line:  # Skip empty lines
+                    try:
+                        yield json.loads(line)
+                    except json.JSONDecodeError as e:
+                        raise click.ClickException(
+                            f"Invalid JSON on line {line_num}: {e}"
+                        ) from e
 
-    def invoke_function(self, **kwargs: Any) -> None:
+    def _apply_defaults(self, input_data: dict | None = None) -> dict:
+        """Apply defaults to function parameters."""
+        defaults = {
+            name: prop.get("default")
+            for name, prop in self.function.input_schema.get("properties", {}).items()
+            if "default" in prop
+        }
+        if input_data:
+            defaults.update(input_data)
+        return defaults
+
+    def invoke(self, ctx: click.Context) -> None:
         """Execute the wrapped function with provided arguments."""
+        input_file = ctx.params.pop("input", None) or self.input_file
+        output_file = ctx.params.pop("output", None) or self.output_file
+
+        if input_file and input_file.endswith(".jsonl"):
+            # Read batch of inputs from a JSON Lines file
+            jobs = [Job(input=input) for input in self._read_batch_inputs(input_file)]
+            for job in jobs:
+                self._execute(job)
+
+            batch = Batch(jobs=jobs)
+            self._write_batch_output(batch, output_file)
+        else:
+            # Process single input from a JSON file or CLI arguments
+            input = self._read_input(input_file) if input_file else ctx.params
+            job = Job(input=self._apply_defaults(input))
+            self._execute(job)
+            self._write_job_output(job, output_file)
+
+            if job.status == Status.FAILURE:
+                raise click.ClickException(job.error.message)
+
+    def _execute(self, job: Job) -> Job:
         try:
-            input_file = kwargs.pop("input", None) or self.input_file
-            output_file = kwargs.pop("output", None) or self.output_file
+            job.started_at = datetime.now(timezone.utc)
+            job.output = self.function(**job.input)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            job.error = Error(message=str(e))
+        finally:
+            job.completed_at = datetime.now(timezone.utc)
+        return job
 
-            def apply_defaults(input_data: dict | None = None) -> dict:
-                """Apply defaults to function parameters."""
-                defaults = {
-                    name: prop.get("default")
-                    for name, prop in self.function.input_schema.get(
-                        "properties", {}
-                    ).items()
-                    if "default" in prop
-                }
-                if input_data:
-                    defaults.update(input_data)
-                return defaults
-
-            def write_output(result: Any) -> None:
-                """Write result to file or stdout."""
-                if isinstance(result, BaseModel):
-                    result = result.model_dump()
-
-                if output_file:
-                    try:
-                        with open(output_file, "w", encoding="utf-8") as f:
-                            self._write_output(
-                                f, result, output_file.endswith(".jsonl")
-                            )
-                    except OSError as e:
-                        raise click.ClickException(
-                            f"Failed to write to output file: {e}"
-                        ) from e
+    def _write_batch_output(
+        self, batch: Batch[dict, Any], output_file: str | None
+    ) -> None:
+        """Write batch results to output file or stdout."""
+        if output_file:
+            with click.open_file(output_file, "w", encoding="utf-8") as f:
+                if output_file.endswith(".jsonl"):
+                    for job in batch.jobs:
+                        f.write(json.dumps(job.model_dump(), default=str) + "\n")
                 else:
-                    click.echo(json.dumps(result))
+                    outputs = [job.model_dump() for job in batch.jobs]
+                    f.write(json.dumps(outputs, default=str) + "\n")
+        else:
+            for job in batch.jobs:
+                self._write_job_output_to_stdout(job)
 
-            if input_file:
-                # Process multiple inputs from file
-                results = []
-                for input_data in self._read_inputs(input_file):
-                    try:
-                        params = apply_defaults(input_data)
-                        result = self.function(**params)
-                        if output_file:
-                            results.append(result)
-                        else:
-                            write_output(result)
-                    except TypeError as e:
-                        raise click.ClickException(
-                            f"Invalid input data: {str(e)}"
-                        ) from e
+    def _write_job_output(self, job: Job[dict, Any], output_file: str | None) -> None:
+        """Write single job result to output file or stdout."""
+        if output_file:
+            with click.open_file(output_file, "w", encoding="utf-8") as f:
+                f.write(json.dumps(job.model_dump(), default=str) + "\n")
+        else:
+            self._write_job_output_to_stdout(job)
 
-                # Write all results at once if using output file
-                if output_file and results:
-                    with open(output_file, "w", encoding="utf-8") as f:
-                        for result in results:
-                            self._write_output(
-                                f, result, output_file.endswith(".jsonl")
-                            )
+    def _write_job_output_to_stdout(self, job: Job[dict, Any]) -> None:
+        """Write job output to stdout."""
+
+        if job.status == Status.SUCCESS:
+            output = job.output
+            if output is None:
+                click.echo("No output", err=True)
+            elif isinstance(output, dict | list):
+                click.echo(json.dumps(output, default=str))
             else:
-                # Process single input from command line
-                try:
-                    params = apply_defaults()
-                    params.update({k: v for k, v in kwargs.items() if v is not None})
-                    result = self.function(**params)
-                    write_output(result)
-                except TypeError as e:
-                    raise click.ClickException(f"Invalid arguments: {str(e)}") from e
-
-        except Exception as e:
-            if not isinstance(e, click.ClickException):
-                raise click.ClickException(str(e)) from e
-            raise
+                click.echo(output)
 
     def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """Format the usage line."""
@@ -521,4 +502,6 @@ def run(
             return cmd.main(args=remaining_args, standalone_mode=False)
 
     except Exception as e:
-        raise click.ClickException(str(e)) from e
+        if not isinstance(e, click.ClickException):
+            raise click.ClickException(str(e)) from e
+        raise

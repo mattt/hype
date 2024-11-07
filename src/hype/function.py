@@ -24,12 +24,12 @@ from pydantic import (
 from pydantic.fields import FieldInfo
 from pydantic.json_schema import JsonSchemaValue, models_json_schema
 
-Input = ParamSpec("Input")
-Output = TypeVar("Output")
+Parameters = ParamSpec("Parameters")
+Return = TypeVar("Return")
 
 
-class Function(BaseModel, Generic[Input, Output]):
-    _wrapped: Callable[Input, Output] = PrivateAttr(
+class Function(BaseModel, Generic[Parameters, Return]):
+    _wrapped: Callable[Parameters, Return] = PrivateAttr(
         default_factory=lambda: lambda *args, **kwargs: None
     )
     name: str
@@ -38,7 +38,9 @@ class Function(BaseModel, Generic[Input, Output]):
     output: type[BaseModel]
 
     @classmethod
-    def validate(cls, value: Callable[Input, Output]) -> "Function[Input, Output]":
+    def validate(
+        cls, value: Callable[Parameters, Return]
+    ) -> "Function[Parameters, Return]":
         if isinstance(value, Function):
             return value
         if not callable(value):
@@ -60,7 +62,7 @@ class Function(BaseModel, Generic[Input, Output]):
         function._wrapped = value
         return function
 
-    def __call__(self, *args: Input.args, **kwargs: Input.kwargs) -> Output:  # pylint: disable=no-member
+    def __call__(self, *args: Parameters.args, **kwargs: Parameters.kwargs) -> Return:  # pylint: disable=no-member
         return validate_call(validate_return=True)(self._wrapped)(*args, **kwargs)
 
     @property
@@ -146,5 +148,5 @@ def input_and_output_types(
     return input, output
 
 
-def wrap(function: Callable[Input, Output]) -> Function[Input, Output]:
+def wrap(function: Callable[Parameters, Return]) -> Function[Parameters, Return]:
     return Function.validate(function)
