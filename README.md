@@ -1,12 +1,12 @@
 # Hype 🆙
 
 > [!WARNING]  
-> This project is in early active development. 
-> Expect frequent updates and potential breaking changes. 
+> This project is in early active development.
+> Expect frequent updates and potential breaking changes.
 
 Hype gives your Python functions super powers.
 
-```python hl_lines="4"
+```python hl_lines="5"
 import hype
 from pydantic import Field
 
@@ -23,29 +23,113 @@ def divide(
     :return: The quotient
     """
     return x // y
-
-
-divide(6, 2)  # => 3
-divide.description # => 'Divides one number by another.'
-divide.input.model_fields["x"].description # => The numerator
-divide.json_schema  # "{'$defs': {'Input': { ... } }"
 ```
 
-## Installation
+Hyped up functions look great to humans 💅
+
+```pycon
+>>> divide
+Function(name='divide', description='Divides one number by another.', input=(x: int, y: int), output=int)
+```
+
+They look great to robots, too 🤖❤️
+
+```pycon
+>>> divide.json_schema
+"{'$defs': {'Input': { ... } } }"
+```
+
+You call them the same as you would any other function,
+except now you get the benefit of automatic input validation 🦺
+
+```pycon
+>>> divide(4, 2)
+2
+
+>>> divide(y=0)
+ValidationError: 2 validation errors for divide
+x
+  Missing required argument [type=missing_argument, input_value=ArgsKwargs((), {'y': 0}), input_type=ArgsKwargs]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing_argument
+y
+  Input should be greater than 0 [type=greater_than, input_value=0, input_type=int]
+    For further information visit https://errors.pydantic.dev/2.9/v/greater_than
+```
+
+Hype gives Python functions a universal calling interface.
+
+Run hyped up functions from the command-line ⚙️
 
 ```console
-pip install git+https://github.com/mattt/hype.git
+# Hyped up functions are
+
+$ hype run example.py divide 9 3
+3
+
+# You can even run batch jobs
+$ python -c "import json, random; print('\n'.join(json.dumps({'x': random.randint(1,1000), 'y': random.randint(0,100)}) for _ in range(3)))" > input.jsonl
+$ cat input.jsonl
+{"x": 49, "y": 7}
+{"x": 438, "y": 73}
+{"x": 1, "y": 0}
+
+$ hype run example.py divide --input input.jsonl
+7
+6
+Error: 1 validation error for divide
+y
+  Input should be greater than 0 [type=greater_than, input_value=0, input_type=int]
+    For further information visit https://errors.pydantic.dev/2.9/v/greater_than
 ```
 
-## Examples
+Or serve them through an HTTP interface 🕸️
 
-### Call Python functions from AI assistants
+```console
+$ hype serve example.py &
+Starting server at http://127.0.0.1:4973
+Loading module...
+✓ Found 1 function
+✓ API server ready
 
-Hyped up functions have tool definitions that you can pass to LLMs like 
+$ curl http://localhost:4973/openapi.json | jq .components.schemas.divide_Input
+{
+  "type": "object",
+  "properties": {
+    "x": {
+      "type": "integer",
+      "title": "X",
+      "description": "The numerator",
+      "x-order": 0
+    },
+    "y": {
+      "type": "integer",
+      "exclusiveMinimum": 0.0,
+      "title": "Y",
+      "description": "The denominator",
+      "x-order": 1
+    }
+  },
+  "required": [
+    "x",
+    "y"
+  ]
+}
+
+$ curl -i -X POST http://localhost:4973/divide \
+          -H "Content-Type: application/json"  \
+          -d '{"x": 99, "y": 3}'
+HTTP/1.1 200 OK
+Content-Length: 2
+Content-Type: application/json
+
+33
+```
+
+Hyped up functions have tool definitions that you can pass to LLMs like
 [Claude](https://docs.anthropic.com/en/docs/build-with-claude/tool-use) and
 [ChatGPT](https://platform.openai.com/docs/guides/function-calling).
 
-For example, 
+For example,
 let's define a pair of functions to help answer a maths problem.
 
 ```python
@@ -77,7 +161,7 @@ to make them available as tools to Claude.
 You can set an optional `result_type` to shape the language model's output.
 
 In this example, we pass the `calculate` and `prime_factors` functions
-and set `result_type` to `bool` to indicate that we want a final 
+and set `result_type` to `bool` to indicate that we want a final
 `True` or `False` answer.
 
 ```python
@@ -168,8 +252,16 @@ Here's a transcript of the exchange:
 >
 > Hype is designed with composability in mind, and doesn't get in your way.
 
-See [examples/tool_use.py](/examples/tool_use.py) 
+See [examples/tool_use.py](/examples/tool_use.py)
 for the full, working example.
+
+## Installation
+
+```console
+pip install git+https://github.com/mattt/hype.git
+```
+
+## Tool Use Examples
 
 ### Return typed outputs from AI assistants
 
@@ -227,7 +319,7 @@ class FlightDetails(BaseModel):
     }
 ```
 
-From there, 
+From there,
 the process is much the same as what we did before.
 
 ```python
@@ -286,12 +378,12 @@ print(result.model_dump_json(indent=2))
 }
 ```
 
-See [examples/output_shaping.py](/examples/output_shaping.py) 
+See [examples/output_shaping.py](/examples/output_shaping.py)
 for the full, working example.
 
 ### Search the web and scrape webpages
 
-Find recipes with DuckDuckGo, 
+Find recipes with DuckDuckGo,
 scrape content from search results,
 convert units to metric,
 and return structured output.
@@ -308,7 +400,7 @@ See [examples/rag.py](/examples/rag.py).
 
 ### Extract structured information from images
 
-Use GPT-4o to extract board state from a picture of a Sudoku puzzle 
+Use GPT-4o to extract board state from a picture of a Sudoku puzzle
 and use tools to solve it.
 
 See [examples/sudoku.py](/examples/sudoku.py).
@@ -324,39 +416,3 @@ See [examples/interactive.py](/examples/interactive.py).
 A glimmer of how to build your own self-hosted, local-first personal assistant.
 
 See [examples/system_events.py](/examples/system_events.py).
-
-## Roadmap
-
-### Examples
-
-- [ ] Generating an image with DALL-E / Replicate / FAL
-
-### Integrations
-
-- [x] AI Chat
-  - [x] Anthropic 
-  - [x] OpenAI
-  - [x] Ollama
-  - [ ] Gemini [^1]
-  - [ ] Mistral
-- [ ] HTTP
-- [ ] WebSockets
-- [ ] CLI
-
-[^1]: Gemini has [`enable_automatic_function_calling` option](https://github.com/google-gemini/cookbook/blob/main/quickstarts/Function_calling.ipynb), which provides similar functionality with different ergonomics.
-
-### Features
-
-- [ ] Protections
-  - [ ] Budgets (time, money, etc.)
-  - [ ] Resource entitlements (access to API keys)
-  - [ ] Guardrails (safety checker, approval queues)
-- [ ] Concurrency (e.g. distributed task queue / worker pool)
-- [ ] Monitoring (telemetry, alerts, etc.)
-
-### Implementation details
-
-- [ ] Add support for hyping up classes and/or instance methods
-      (for example, support `search` as an instance method in the RAG example)
-- [ ] Custom `concurrent.futures.Executor` subclass for chat models
-      (use `Future` correctly, record calls, enforce limits, reduce boilerplate)
