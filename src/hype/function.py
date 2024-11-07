@@ -59,11 +59,11 @@ class Function(BaseModel, Generic[Parameters, Return]):
             input=input,
             output=output,
         )
-        function._wrapped = value
+        function._wrapped = validate_call(validate_return=True)(value)
         return function
 
     def __call__(self, *args: Parameters.args, **kwargs: Parameters.kwargs) -> Return:  # pylint: disable=no-member
-        return validate_call(validate_return=True)(self._wrapped)(*args, **kwargs)
+        return self._wrapped(*args, **kwargs)
 
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -80,6 +80,29 @@ class Function(BaseModel, Generic[Parameters, Return]):
             title=title or self.name,
         )
         return top_level_schema
+
+    def __repr__(self) -> str:
+        input_fields = ", ".join(
+            f"{k}: {v.annotation.__name__}" for k, v in self.input.model_fields.items()
+        )
+
+        # Get the actual output type from RootModel
+        if hasattr(self.output, "model_fields") and "root" in self.output.model_fields:
+            root_annotation = self.output.model_fields["root"].annotation
+            # If it's a TypeVar, get its bound type
+            if hasattr(root_annotation, "__bound__") and root_annotation.__bound__:
+                output_type = root_annotation.__bound__.__name__
+            else:
+                output_type = root_annotation.__name__
+        else:
+            output_type = self.output.__name__
+
+        desc_part = f", description='{self.description}'" if self.description else ""
+        return (
+            f"Function(name='{self.name}'{desc_part}, "
+            f"input=({input_fields}), "
+            f"output={output_type})"
+        )
 
 
 def input_and_output_types(
