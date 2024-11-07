@@ -297,22 +297,27 @@ class FunctionCommand(click.Command):
 
     def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """Format the usage line."""
-        # Get required parameters
-        required_params = [
-            param.name.upper()
-            for param in self.params
-            if param.name not in self.BUILT_IN_OPTIONS and param.required
-        ]
 
         # Build the full command path including the complete module path
         command_path = f"hype run {self.module_path} {self.name}"
+        prefix = f"Usage: {command_path} "
+        formatter.write(prefix)
 
-        # Format usage line
-        usage = "[OPTIONS]"
-        if required_params:
-            usage += " " + " ".join(required_params)
+        # Write the options section
+        formatter.write("[options...]")
 
-        formatter.write_usage(command_path, usage)
+        # Get required parameters
+        if parameters := [
+            param for param in self.params if param.name not in self.BUILT_IN_OPTIONS
+        ]:
+            for param in parameters:
+                formatter.write(" \\ \n")
+                chunk = f"(<{param.name}> | --{param.name} VALUE)"
+                if not param.required:
+                    chunk = f"[{chunk}]"
+                formatter.write(" " * len(prefix) + chunk)
+
+        formatter.write("\n")
 
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """Custom help formatter to improve the layout."""
