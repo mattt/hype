@@ -69,6 +69,12 @@ def create_gradio_component(
                 else None,
                 **kwargs,
             )
+        elif inner_type is Path:
+            return gr.File(
+                label=label,
+                file_count="multiple",
+                **kwargs,
+            )
 
     # Handle dictionaries
     if get_origin(field_type) is dict:
