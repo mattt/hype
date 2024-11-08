@@ -11,6 +11,7 @@ from pydantic.types import (
     Decimal,
     PathType,
 )
+from pydantic_core import PydanticUndefinedType
 
 from hype.function import Function
 
@@ -21,15 +22,23 @@ if TYPE_CHECKING:
 def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
     import gradio as gr
 
-    field_type = field_info.annotation
-    field_title = field_info.alias or name
-    json_schema_extra = getattr(field_info, "json_schema_extra", {}) or {}
+    label = field_info.alias or name
 
-    # Handle Optional types
+    field_type = field_info.annotation
     if get_origin(field_type) is Union:
+        # Handle Optional types
         args = get_args(field_type)
         if len(args) == 2 and type(None) in args:
             field_type = next(arg for arg in args if arg is not type(None))
+
+    default = (
+        None
+        if field_info.default_factory is not None
+        or isinstance(field_info.default, PydanticUndefinedType)
+        else field_info.default
+    )
+
+    json_schema_extra = getattr(field_info, "json_schema_extra", {}) or {}
 
     # Handle IP addresses
     if field_type in (
@@ -38,7 +47,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         IPvAnyNetwork,
     ):
         return gr.Textbox(
-            label=field_title,
+            label=label,
             info=field_info.description,
             placeholder=f"Enter valid {field_type.__name__}",
         )
@@ -49,7 +58,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         if inner_type in (str, int, float):
             return gr.Dropdown(
                 multiselect=True,
-                label=field_title,
+                label=label,
                 info=field_info.description,
                 allow_custom_value=True,
                 value=field_info.default
@@ -60,14 +69,14 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
     # Handle dictionaries
     if get_origin(field_type) is dict:
         return gr.JSON(
-            label=field_title,
+            label=label,
         )
 
     # Handle datetime types
     if field_type is datetime:
         return gr.DateTime(
-            label=field_title,
-            value=field_info.default if field_info.default_factory is None else None,
+            label=label,
+            value=default,
             info=field_info.description,
         )
 
@@ -78,21 +87,21 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         "url",
     ):
         return gr.File(
-            label=field_title,
+            label=label,
         )
 
     # Handle HTML content
     if field_type is str and json_schema_extra.get("format") == "html":
         return gr.HTML(
-            value=field_info.default if field_info.default_factory is None else None,
-            label=field_title,
+            value=default,
+            label=label,
         )
 
     # Handle markdown content
     if field_type is str and json_schema_extra.get("format") == "markdown":
         return gr.Markdown(
-            value=field_info.default if field_info.default_factory is None else None,
-            label=field_title,
+            value=default,
+            label=label,
         )
 
     # Handle enums - use Dropdown for long enums, Radio for short ones
@@ -101,13 +110,13 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         if len(choices) > 5:  # Use Dropdown for longer lists
             return gr.Dropdown(
                 choices=choices,
-                label=field_title,
+                label=label,
                 value=field_info.default.value if field_info.default else None,
                 info=field_info.description,
             )
         return gr.Radio(
             choices=choices,
-            label=field_title,
+            label=label,
             value=field_info.default.value if field_info.default else None,
             info=field_info.description,
         )
@@ -149,7 +158,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
                 minimum=min_val,
                 maximum=max_val,
                 step=multiple_of,
-                label=field_title,
+                label=label,
                 value=field_info.default
                 if field_info.default_factory is None
                 else None,
@@ -157,8 +166,8 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             )
 
         return gr.Number(
-            label=field_title,
-            value=field_info.default if field_info.default_factory is None else None,
+            label=label,
+            value=default,
             info=field_info.description,
             minimum=min_val,
             maximum=max_val,
@@ -175,7 +184,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
     # Handle ByteSize
     if field_type is ByteSize:
         return gr.Textbox(
-            label=field_title,
+            label=label,
             info=field_info.description,
             placeholder="e.g., 1GB, 500MB, 1024B",
         )
@@ -183,7 +192,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
     # Handle Decimal with precision
     if field_type is Decimal:
         return gr.Number(
-            label=field_title,
+            label=label,
             precision=getattr(field_info, "decimal_places", None),
             info=field_info.description,
         )
@@ -191,16 +200,16 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
     # Handle boolean types
     if field_type is bool:
         return gr.Checkbox(
-            label=field_title,
-            value=field_info.default if field_info.default_factory is None else None,
+            label=label,
+            value=default,
             info=field_info.description,
         )
 
     # Handle color inputs
     if field_type is str and json_schema_extra.get("format") == "color":
         return gr.ColorPicker(
-            label=field_title,
-            value=field_info.default if field_info.default_factory is None else None,
+            label=label,
+            value=default,
             info=field_info.description,
         )
 
@@ -209,8 +218,8 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         field_type is str and json_schema_extra.get("format") in ("date", "date-time")
     ):
         return gr.DateTime(
-            label=field_title,
-            value=field_info.default if field_info.default_factory is None else None,
+            label=label,
+            value=default,
             info=field_info.description,
         )
 
@@ -226,7 +235,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         )
         if is_directory:
             return gr.File(
-                label=field_title,
+                label=label,
                 file_count="directory",
             )
 
@@ -255,7 +264,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
 
         # Handle file paths
         return gr.File(
-            label=field_title,
+            label=label,
             file_types=file_types if file_types else None,
             file_count=file_count,
         )
@@ -263,59 +272,46 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
     # Handle file paths
     if field_type is str and json_schema_extra.get("format") == "file-path":
         return gr.File(
-            label=field_title,
+            label=label,
         )
-
-    if field_type is str:
-        # Check various indicators that this field expects long-form text input
-        min_length = next(
-            (c.min_length for c in field_info.metadata if hasattr(c, "min_length")), 0
-        )
-        max_length = next(
-            (c.max_length for c in field_info.metadata if hasattr(c, "max_length")), 0
-        )
-
-        is_long_text = any(
-            [
-                max_length > 128,  # Large max length
-                min_length > 64,  # Non-trivial min length
-                isinstance(field_info.default, str)
-                and (  # Default is long or multiline
-                    len(field_info.default) > 128 or "\n" in field_info.default
-                ),
-                field_info.description
-                and len(field_info.description)
-                > 256,  # Description suggests long input
-            ]
-        )
-
-        if is_long_text:
-            return gr.TextArea(
-                label=field_title,
-                value=field_info.default
-                if field_info.default_factory is None
-                else None,
-                max_lines=10,
-                info=field_info.description,
-            )
-        else:
-            return gr.Textbox(
-                label=field_title,
-                value=field_info.default
-                if field_info.default_factory is None
-                else None,
-                lines=1,
-                info=field_info.description,
-                max_lines=1,
-            )
 
     # Fallback to textbox
-    return gr.Textbox(
-        label=field_title,
-        value=field_info.default if field_info.default_factory is None else None,
-        lines=3 if getattr(field_info, "max_length", 0) > 100 else 1,
-        info=field_info.description,
+
+    # Check various indicators that this field expects long-form text input
+    min_length = next(
+        (c.min_length for c in field_info.metadata if hasattr(c, "min_length")), 0
     )
+    max_length = next(
+        (c.max_length for c in field_info.metadata if hasattr(c, "max_length")), 0
+    )
+
+    is_long_text = any(
+        [
+            max_length > 128,  # Large max length
+            min_length > 64,  # Non-trivial min length
+            isinstance(field_info.default, str)
+            and (  # Default is long or multiline
+                len(field_info.default) > 128 or "\n" in field_info.default
+            ),
+            field_info.description
+            and len(field_info.description) > 256,  # Description suggests long input
+        ]
+    )
+    if is_long_text:
+        return gr.TextArea(
+            label=label,
+            value=default,
+            max_lines=10,
+            info=field_info.description,
+        )
+    else:
+        return gr.Textbox(
+            label=label,
+            lines=1,
+            value=default,
+            info=field_info.description,
+            max_lines=1,
+        )
 
 
 def create_gradio_interface(function: Function, **kwargs: Any) -> "gr.Interface":
