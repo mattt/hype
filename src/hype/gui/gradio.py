@@ -114,17 +114,41 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
 
     # Handle number types with constraints
     if field_type in (int, float):
-        # Use Slider if we have both min and max constraints
-        has_min = getattr(field_info, "ge", getattr(field_info, "gt", None)) is not None
-        has_max = getattr(field_info, "le", getattr(field_info, "lt", None)) is not None
+        # Extract constraints from metadata
+        constraints = [
+            m
+            for m in field_info.metadata
+            if hasattr(m, "gt")
+            or hasattr(m, "ge")
+            or hasattr(m, "lt")
+            or hasattr(m, "le")
+        ]
+        min_val = next(
+            (
+                (c.gt if hasattr(c, "gt") else c.ge)
+                for c in constraints
+                if hasattr(c, "gt") or hasattr(c, "ge")
+            ),
+            None,
+        )
+        max_val = next(
+            (
+                (c.lt if hasattr(c, "lt") else c.le)
+                for c in constraints
+                if hasattr(c, "lt") or hasattr(c, "le")
+            ),
+            None,
+        )
+        multiple_of = next(
+            (c.multiple_of for c in field_info.metadata if hasattr(c, "multiple_of")),
+            1 if field_type is int else 0.1,
+        )
 
-        if has_min and has_max:
+        if min_val is not None and max_val is not None:
             return gr.Slider(
-                minimum=getattr(field_info, "ge", getattr(field_info, "gt", None)),
-                maximum=getattr(field_info, "le", getattr(field_info, "lt", None)),
-                step=getattr(
-                    field_info, "multiple_of", 1 if field_type is int else 0.1
-                ),
+                minimum=min_val,
+                maximum=max_val,
+                step=multiple_of,
                 label=field_title,
                 value=field_info.default
                 if field_info.default_factory is None
@@ -136,9 +160,16 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=field_title,
             value=field_info.default if field_info.default_factory is None else None,
             info=field_info.description,
-            minimum=getattr(field_info, "ge", getattr(field_info, "gt", None)),
-            maximum=getattr(field_info, "le", getattr(field_info, "lt", None)),
-            precision=getattr(field_info, "decimal_places", None),
+            minimum=min_val,
+            maximum=max_val,
+            precision=next(
+                (
+                    c.decimal_places
+                    for c in field_info.metadata
+                    if hasattr(c, "decimal_places")
+                ),
+                None,
+            ),
         )
 
     # Handle ByteSize
@@ -236,10 +267,26 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         )
 
     if field_type is str:
-        # Check for long text
-        is_long_text = (
-            getattr(field_info, "max_length", 0) > 100
-            or getattr(field_info, "description", "").count("\n") > 0
+        # Check various indicators that this field expects long-form text input
+        min_length = next(
+            (c.min_length for c in field_info.metadata if hasattr(c, "min_length")), 0
+        )
+        max_length = next(
+            (c.max_length for c in field_info.metadata if hasattr(c, "max_length")), 0
+        )
+
+        is_long_text = any(
+            [
+                max_length > 128,  # Large max length
+                min_length > 64,  # Non-trivial min length
+                isinstance(field_info.default, str)
+                and (  # Default is long or multiline
+                    len(field_info.default) > 128 or "\n" in field_info.default
+                ),
+                field_info.description
+                and len(field_info.description)
+                > 256,  # Description suggests long input
+            ]
         )
 
         if is_long_text:
