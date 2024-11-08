@@ -15,7 +15,7 @@ uv run examples/text_analysis.py
 # ]
 # ///
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from textstat import flesch_reading_ease, lexicon_count
 
 import hype
@@ -27,6 +27,11 @@ class TextAnalysis(BaseModel):
         description="Flesch reading ease score (0-100, higher is easier)"
     )
 
+    @field_validator('reading_ease')
+    def clamp_reading_ease(cls, v: float) -> float:
+        """Clamp reading ease score between 0 and 100"""
+        return max(0, min(100, v))
+
 
 @hype.up
 def analyze(
@@ -35,19 +40,14 @@ def analyze(
         max_length=10000,
     ),
 ) -> TextAnalysis:
-    """
-    Performs sentiment and readability analysis on text.
-
-    :param text: The text to analyze (must be at least 10 characters)
-    :return: Analysis including sentiment scores and readability metrics
-    """
+    """Performs sentiment and readability analysis on text."""
 
     word_count = lexicon_count(text)
     reading_ease = flesch_reading_ease(text) if word_count > 0 else 0
 
     return TextAnalysis(
         word_count=word_count,
-        reading_ease=max(0, min(100, reading_ease)),
+        reading_ease=reading_ease,
     )
 
 
