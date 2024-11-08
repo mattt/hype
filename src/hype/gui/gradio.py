@@ -126,14 +126,14 @@ def create_gradio_component(
             return gr.Dropdown(
                 choices=choices,
                 label=label,
-                value=field_info.default.value if field_info.default else None,
+                value=default,
                 info=field_info.description,
                 **kwargs,
             )
         return gr.Radio(
             choices=choices,
             label=label,
-            value=field_info.default.value if field_info.default else None,
+            value=default,
             info=field_info.description,
             **kwargs,
         )
