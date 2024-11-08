@@ -19,7 +19,9 @@ if TYPE_CHECKING:
     import gradio as gr
 
 
-def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
+def create_gradio_component(
+    name: str, field_info: FieldInfo, **kwargs: Any
+) -> "gr.Component":
     import gradio as gr
 
     label = field_info.alias or name
@@ -50,6 +52,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=label,
             info=field_info.description,
             placeholder=f"Enter valid {field_type.__name__}",
+            **kwargs,
         )
 
     # Handle lists/sequences
@@ -64,12 +67,14 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
                 value=field_info.default
                 if field_info.default_factory is None
                 else None,
+                **kwargs,
             )
 
     # Handle dictionaries
     if get_origin(field_type) is dict:
         return gr.JSON(
             label=label,
+            **kwargs,
         )
 
     # Handle datetime types
@@ -78,6 +83,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=label,
             value=default,
             info=field_info.description,
+            **kwargs,
         )
 
     # Handle file paths and URLs
@@ -88,6 +94,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
     ):
         return gr.File(
             label=label,
+            **kwargs,
         )
 
     # Handle HTML content
@@ -95,6 +102,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         return gr.HTML(
             value=default,
             label=label,
+            **kwargs,
         )
 
     # Handle markdown content
@@ -102,6 +110,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
         return gr.Markdown(
             value=default,
             label=label,
+            **kwargs,
         )
 
     # Handle enums - use Dropdown for long enums, Radio for short ones
@@ -113,12 +122,14 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
                 label=label,
                 value=field_info.default.value if field_info.default else None,
                 info=field_info.description,
+                **kwargs,
             )
         return gr.Radio(
             choices=choices,
             label=label,
             value=field_info.default.value if field_info.default else None,
             info=field_info.description,
+            **kwargs,
         )
 
     # Handle number types with constraints
@@ -163,6 +174,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
                 if field_info.default_factory is None
                 else None,
                 info=field_info.description,
+                **kwargs,
             )
 
         return gr.Number(
@@ -179,6 +191,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
                 ),
                 None,
             ),
+            **kwargs,
         )
 
     # Handle ByteSize
@@ -187,6 +200,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=label,
             info=field_info.description,
             placeholder="e.g., 1GB, 500MB, 1024B",
+            **kwargs,
         )
 
     # Handle Decimal with precision
@@ -195,6 +209,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=label,
             precision=getattr(field_info, "decimal_places", None),
             info=field_info.description,
+            **kwargs,
         )
 
     # Handle boolean types
@@ -203,6 +218,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=label,
             value=default,
             info=field_info.description,
+            **kwargs,
         )
 
     # Handle color inputs
@@ -211,6 +227,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=label,
             value=default,
             info=field_info.description,
+            **kwargs,
         )
 
     # Handle date/time inputs
@@ -221,6 +238,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=label,
             value=default,
             info=field_info.description,
+            **kwargs,
         )
 
     # Handle Path types
@@ -237,6 +255,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             return gr.File(
                 label=label,
                 file_count="directory",
+                **kwargs,
             )
 
         # Handle specific file types from json schema
@@ -267,12 +286,14 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             label=label,
             file_types=file_types if file_types else None,
             file_count=file_count,
+            **kwargs,
         )
 
     # Handle file paths
     if field_type is str and json_schema_extra.get("format") == "file-path":
         return gr.File(
             label=label,
+            **kwargs,
         )
 
     # Fallback to textbox
@@ -303,6 +324,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             value=default,
             max_lines=10,
             info=field_info.description,
+            **kwargs,
         )
     else:
         return gr.Textbox(
@@ -311,6 +333,7 @@ def create_gradio_component(name: str, field_info: FieldInfo) -> "gr.Component":
             value=default,
             info=field_info.description,
             max_lines=1,
+            **kwargs,
         )
 
 
