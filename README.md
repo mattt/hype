@@ -125,6 +125,57 @@ Content-Type: application/json
 33
 ```
 
+Or if ClickOps are more your thing,
+hype can automatically generate a Gradio app 🖱️
+
+```python
+from pydantic import BaseModel, Field, field_validator
+from textstat import flesch_reading_ease, lexicon_count
+
+import hype
+
+
+class TextAnalysis(BaseModel):
+    word_count: int = Field(description="Total number of words in text")
+    reading_ease: float = Field(
+        description="Flesch reading ease score (0-100, higher is easier)"
+    )
+
+    @field_validator('reading_ease')
+    def clamp_reading_ease(cls, v: float) -> float:
+        return max(0, min(100, v))
+
+
+@hype.up
+def analyze(
+    text: str = Field(
+        description="Text to analyze",
+        max_length=10000,
+    ),
+) -> TextAnalysis:
+    """Performs sentiment and readability analysis on text."""
+
+    word_count = lexicon_count(text)
+    reading_ease = flesch_reading_ease(text) if word_count > 0 else 0
+
+    return TextAnalysis(
+        word_count=word_count,
+        reading_ease=reading_ease,
+    )
+
+
+if __name__ == "__main__":
+    hype.create_gradio_interface(analyze).launch()
+
+```
+
+```console
+$ uv run examples/text_analysis.py
+$ open http://127.0.0.1:7860
+```
+
+<img width="1243" alt="Screenshot of example Gradio app created by Hype" src="https://github.com/user-attachments/assets/d97e92ff-7469-4c80-a9e0-22b7657129e2"/>
+
 Hyped up functions have tool definitions that you can pass to LLMs like
 [Claude](https://docs.anthropic.com/en/docs/build-with-claude/tool-use) and
 [ChatGPT](https://platform.openai.com/docs/guides/function-calling).
