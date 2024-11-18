@@ -234,8 +234,16 @@ class FunctionCommand(click.Command):
         if input_file and input_file.endswith(".jsonl"):
             # Read batch of inputs from a JSON Lines file
             jobs = [Job(input=input) for input in self._read_batch_inputs(input_file)]
-            for job in jobs:
-                self._execute(job)
+
+            # Add a progress bar for batch processing
+            with click.progressbar(
+                jobs, label="Processing batch", length=len(jobs)
+            ) as bar:
+                for job in bar:
+                    try:
+                        self._execute(job)
+                    except Exception as e:
+                        click.echo(f"Error processing job: {e}", err=True)
 
             batch = Batch(jobs=jobs)
             self._write_batch_output(batch, output_file)
