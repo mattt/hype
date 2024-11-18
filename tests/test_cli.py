@@ -354,3 +354,30 @@ def test_serve(temp_module):
         assert response.json() == 3
     finally:
         server_thread.join(timeout=1)
+
+
+def test_run_batch_with_progress_bar(runner, temp_module, tmp_path):
+    """Test batch processing with a progress bar."""
+    input_file = tmp_path / "input.jsonl"
+    input_lines = [
+        json.dumps({"a": 1, "b": 2}),
+        json.dumps({"a": 3, "b": 4}),
+    ]
+    input_file.write_text("\n".join(input_lines))
+    output_file = tmp_path / "output.jsonl"
+
+    result = runner.invoke(
+        run,
+        [temp_module, "add", "--input", str(input_file), "--output", str(output_file)],
+    )
+
+    # Check that the command executed successfully
+    assert result.exit_code == 0
+
+    # Verify that the progress bar was displayed
+    assert "Processing batch" in result.output
+
+    # Verify the output file contents
+    outputs = output_file.read_text().strip().split("\n")
+    assert json.loads(outputs[0])["output"] == 3  # 1 + 2
+    assert json.loads(outputs[1])["output"] == 7  # 3 + 4
