@@ -36,7 +36,7 @@ class FunctionCommand(click.Command):
         # Add built-in options first
         self.params.append(
             click.Option(
-                ["--input"],
+                ["--input", "-i"],
                 type=click.Path(exists=True, readable=True),
                 required=False,
                 help="Read input from a JSON or JSON Lines file",
@@ -45,7 +45,7 @@ class FunctionCommand(click.Command):
         )
         self.params.append(
             click.Option(
-                ["--output"],
+                ["--output", "-o"],
                 type=click.Path(writable=True),
                 required=False,
                 help="Write output to a JSON or JSON Lines file",
@@ -98,10 +98,6 @@ class FunctionCommand(click.Command):
     ) -> tuple[list[str], list[str], list[str]]:
         """Override to handle positional arguments for required parameters."""
 
-        def is_function_arg(arg: str) -> bool:
-            """Check if an argument is a function argument (not input/output/etc.)"""
-            return arg.startswith("--") and arg not in self.BUILT_IN_OPTIONS
-
         def extract_option_pairs(
             args: list[str], allowed_options: set[str]
         ) -> list[str]:
@@ -113,20 +109,9 @@ class FunctionCommand(click.Command):
             return result
 
         # Check for --input and validate arguments
-        has_input = "--input" in args
-        has_args = any(
-            arg for arg in args if is_function_arg(arg) or not arg.startswith("--")
-        )
-
-        if has_input and has_args:
-            raise click.UsageError(
-                "Cannot specify function arguments when using --input"
-            )
-
-        # Handle --input case separately
-        if has_input:
+        if "--input" in args or "-i" in args:
             return super().parse_args(
-                ctx, extract_option_pairs(args, {"--input", "--output"})
+                ctx, extract_option_pairs(args, {"--input", "-i"} | {"--output", "-o"})
             )
 
         # Handle the -- separator for command arguments
@@ -182,8 +167,8 @@ class FunctionCommand(click.Command):
             used_params.add(param.name)
 
         # Include output option if present
-        if "--output" in args:
-            named.extend(extract_option_pairs(args, {"--output"}))
+        if "--output" in args or "-o" in args:
+            named.extend(extract_option_pairs(args, {"--output", "-o"}))
 
         return super().parse_args(ctx, named)
 
@@ -442,11 +427,15 @@ class ModuleGroup(click.Group):
 @click.argument("module_path", type=click.Path(exists=True), required=False)
 @click.option(
     "--input",
+    "-i",
     type=click.Path(exists=True, readable=True),
     help="Read input from a JSON or JSON Lines file",
 )
 @click.option(
-    "--output", type=click.Path(writable=True), help="Write output to a JSON file"
+    "--output",
+    "-o",
+    type=click.Path(writable=True),
+    help="Write output to a JSON file",
 )
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
 def run(

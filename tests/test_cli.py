@@ -381,3 +381,67 @@ def test_run_batch_with_progress_bar(runner, temp_module, tmp_path):
     outputs = output_file.read_text().strip().split("\n")
     assert json.loads(outputs[0])["output"] == 3  # 1 + 2
     assert json.loads(outputs[1])["output"] == 7  # 3 + 4
+
+
+# Parameterized tests for input and output flags
+@pytest.mark.parametrize(
+    "input_flag, output_flag",
+    [
+        ("--input", "--output"),
+        ("-i", "-o"),
+    ],
+)
+def test_run_with_input_and_output_flags(
+    runner, temp_module, tmp_path, input_flag, output_flag
+):
+    input_file = tmp_path / "input.jsonl"
+    input_lines = [
+        json.dumps(line)
+        for line in [
+            {"a": 1, "b": 2, "c": 3},
+            {"a": 3, "b": 4},
+        ]
+    ]
+    input_file.write_text("\n".join(input_lines))
+    output_file = tmp_path / "output.jsonl"
+
+    result = runner.invoke(
+        run,
+        [
+            temp_module,
+            "add",  # Function name should come before the flags
+            input_flag,
+            str(input_file),
+            output_flag,
+            str(output_file),
+        ],
+    )
+    if result.exit_code != 0:
+        raise AssertionError(f"Command failed with: {result.output}")
+    outputs = output_file.read_text().strip().split("\n")
+    assert json.loads(outputs[0])["output"] == 6  # 1 + 2 + 3
+    assert json.loads(outputs[1])["output"] == 7  # 3 + 4
+
+
+@pytest.mark.parametrize("input_flag", ["--input", "-i"])
+def test_run_with_input_flag(runner, temp_module, tmp_path, input_flag):
+    input_file = tmp_path / "input.json"
+    input_file.write_text(json.dumps({"message": "hello"}))
+    result = runner.invoke(run, [temp_module, "echo", input_flag, str(input_file)])
+    if result.exit_code != 0:
+        raise AssertionError(f"Command failed with: {result.output}")
+    assert result.output.strip() == "hello"
+
+
+@pytest.mark.parametrize("output_flag", ["--output", "-o"])
+def test_run_with_output_flag(runner, temp_module, tmp_path, output_flag):
+    output_file = tmp_path / "output.json"
+    result = runner.invoke(
+        run, [temp_module, "add", output_flag, str(output_file), "1", "2"]
+    )
+    if result.exit_code != 0:
+        raise AssertionError(f"Command failed with: {result.output}")
+    assert result.output == ""
+    data = json.loads(output_file.read_text())
+    assert data["status"] == "success"
+    assert data["output"] == 3
