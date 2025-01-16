@@ -24,6 +24,7 @@ build-backend = "hatchling.build"
 [tool.uv]
 dev-dependencies = [
     "gradio>=5.5.0",
+    "pytest-asyncio>=0.21.0",
     "pytest-mock>=3.14.0",
     "pytest>=8.3.3",
     "ruff>=0.7.0",
