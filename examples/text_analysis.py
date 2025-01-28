@@ -1,3 +1,5 @@
+#!/usr/bin/env -S uv run --script
+
 """
 This example shows how to construct a simple text analysis tool using Hype.
 
@@ -27,7 +29,7 @@ class TextAnalysis(BaseModel):
         description="Flesch reading ease score (0-100, higher is easier)"
     )
 
-    @field_validator('reading_ease')
+    @field_validator("reading_ease")
     def clamp_reading_ease(cls, v: float) -> float:
         """Clamp reading ease score between 0 and 100"""
         return max(0, min(100, v))
