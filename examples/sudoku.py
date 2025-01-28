@@ -1,12 +1,14 @@
+#!/usr/bin/env -S uv run --script
+
 """
-This example shows how to extract tables from an image.
+This example shows how to solve Sudoku puzzles with OpenAI.
 
 Download `uv` to run this example: https://github.com/astral-sh/uv
 
 ```
 export OPENAI_API_KEY="..."
 
-uv run examples/extract_tables.py
+uv run examples/sudoku.py
 ```
 """
 

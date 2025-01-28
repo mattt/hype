@@ -1,3 +1,5 @@
+#!/usr/bin/env -S uv run --script
+
 """
 This example shows how to serve a function over HTTP with Hype.
 

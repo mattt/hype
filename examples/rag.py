@@ -1,3 +1,5 @@
+#!/usr/bin/env -S uv run --script
+
 """
 This example shows how to do Retrieval Augmented Generation (RAG) with OpenAI,
 using the `sqlite-vec` extension to store and query the embeddings
